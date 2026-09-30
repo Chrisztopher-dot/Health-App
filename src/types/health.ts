@@ -171,6 +171,7 @@ export interface BayAreaEvent {
   isRecurring?: boolean;
   isThisWeek?: boolean;
   weekLabel?: string;
+  imageUrl?: string;
 }
 
 export type RecipeMealType = 'breakfast' | 'lunch' | 'dinner' | 'soup' | 'snack' | 'smoothie';
