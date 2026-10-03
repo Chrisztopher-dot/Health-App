@@ -65,13 +65,13 @@ const QUICK_PRESETS: {
     description: 'Active chores, DIY home improvement & repairs',
   },
   {
-    title: 'Gentle Yoga & Stretch',
+    title: 'Yoga, Pilates & Stretch',
     category: 'stretching',
     defaultDuration: 20,
     intensity: 'gentle',
     emoji: '🧘',
     badgeColor: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-    description: 'Joint flexibility, spine mobility & posture',
+    description: 'Core strength, joint flexibility & mindful posture',
   },
   {
     title: 'Swimming / Water Aerobics',
@@ -285,9 +285,9 @@ export const ActivitiesTracker: React.FC<ActivitiesTrackerProps> = ({ profile })
     } else if (lower.includes('swim') || lower.includes('water')) {
       detectedCategory = 'swimming';
       detectedTitle = 'Swimming & Pool Aerobics 🏊';
-    } else if (lower.includes('stretch') || lower.includes('yoga') || lower.includes('chair')) {
+    } else if (lower.includes('stretch') || lower.includes('yoga') || lower.includes('pilates') || lower.includes('chair')) {
       detectedCategory = 'stretching';
-      detectedTitle = 'Gentle Stretching & Yoga 🧘';
+      detectedTitle = 'Yoga, Pilates & Stretch 🧘';
     } else if (lower.includes('garden') || lower.includes('yard')) {
       detectedCategory = 'gardening';
       detectedTitle = 'Gardening & Yard Care 🌿';
@@ -904,7 +904,7 @@ export const ActivitiesTracker: React.FC<ActivitiesTrackerProps> = ({ profile })
                     <option value="walking">Walking 🚶</option>
                     <option value="hiking">Hiking & Nature Trail 🥾</option>
                     <option value="housework">Working on the House 🏡</option>
-                    <option value="stretching">Stretching & Yoga 🧘</option>
+                    <option value="stretching">Yoga, Pilates & Stretch 🧘</option>
                     <option value="swimming">Swimming & Pool 🏊</option>
                     <option value="gardening">Gardening & Yard 🌿</option>
                     <option value="sports">Sports & Pickleball 🎾</option>

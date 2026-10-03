@@ -103,7 +103,7 @@ export class MedicalAIService {
       let title = 'Neighborhood Walk';
       if (q.includes('hike') || q.includes('trail')) { category = 'hiking'; title = 'Nature Trail Walk'; }
       else if (q.includes('garden')) { category = 'gardening'; title = 'Gardening'; }
-      else if (q.includes('stretch') || q.includes('yoga')) { category = 'stretching'; title = 'Gentle Stretching'; }
+      else if (q.includes('stretch') || q.includes('yoga') || q.includes('pilates')) { category = 'stretching'; title = 'Yoga, Pilates & Stretch'; }
       else if (q.includes('housework') || q.includes('clean')) { category = 'housework'; title = 'Housework Session'; }
 
       const newEntry: ActivityLogEntry = {
