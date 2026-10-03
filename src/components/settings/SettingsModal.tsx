@@ -152,11 +152,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
                     <span>Account: {username ? `@${username}` : formData.name}</span>
                     <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
-                      Salted & Hashed (PBKDF2)
+                      Private & Protected
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-500 font-medium">
-                    Protected with 100,000 cryptographic rounds and random salt
+                    Protected password security keeps your private health logs safe on this device
                   </div>
                 </div>
               </div>

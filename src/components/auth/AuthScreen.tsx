@@ -151,9 +151,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
         {/* Compact Security & Encryption Indicator */}
         <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-xl px-3.5 py-2 flex items-center justify-center gap-2 text-xs">
           <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span className="font-bold text-emerald-300">Salted & Hashed Passwords</span>
+          <span className="font-bold text-emerald-300">Protected Password Security</span>
           <span className="text-slate-600">•</span>
-          <span className="text-slate-400 font-medium">Encrypted & Private</span>
+          <span className="text-slate-400 font-medium">100% Private & Encrypted</span>
         </div>
 
         {/* Mode Selector Tabs (Sign In vs Create Account) */}
@@ -231,7 +231,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
                   <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
                   Password
                 </label>
-                <span className="text-[11px] text-emerald-400 font-bold">Salted & Hashed</span>
+                <span className="text-[11px] text-emerald-400 font-bold">Protected & Private</span>
               </div>
               <div className="relative">
                 <input
@@ -259,7 +259,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
               className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-xl shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 text-base"
             >
               {isLoading ? (
-                <span>Verifying Salt & Hash...</span>
+                <span>Signing you in securely...</span>
               ) : (
                 <>
                   <span>Sign In to Your Health Portal</span>
@@ -403,11 +403,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
               className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-xl shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 text-base mt-2"
             >
               {isLoading ? (
-                <span>Deriving Salt & PBKDF2 Hash...</span>
+                <span>Creating your secure account...</span>
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>Create Salted & Hashed Account</span>
+                  <span>Create Secure Health Account</span>
                 </>
               )}
             </button>
