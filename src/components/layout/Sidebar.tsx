@@ -74,9 +74,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     averageSleep: 7.5,
     recommendation: 'Stay hydrated and enjoy your daily routine.',
   };
+  const userFirstName = profile.name ? profile.name.trim().split(' ')[0] : 'friend';
   const navSections: NavSection[] = [
     {
-      title: 'Daily Care',
+      title: `Good to see you again ${userFirstName}`,
       items: [
         {
           id: 'conversational',
@@ -195,7 +196,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {navSections.map((section, idx) => (
           <div key={idx} className="space-y-1">
             {!isCollapsed && (
-              <div className="px-3 pb-1 text-[11px] font-extrabold uppercase tracking-wider text-slate-400/80">
+              <div className="px-3 pb-1 text-[11px] font-extrabold tracking-wide text-slate-400/90">
                 {section.title}
               </div>
             )}
