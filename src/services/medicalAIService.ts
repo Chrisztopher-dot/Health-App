@@ -1,20 +1,24 @@
-import { UserProfile, CheckInRecord, SmartAlert } from '../types/health';
+import { UserProfile, CheckInRecord, SmartAlert, AppTab, ActivityLogEntry } from '../types/health';
 import { HealthStorageService } from './healthStorage';
 import { HealthAnalyticsService } from './healthAnalytics';
 
 export interface MedicalAIResponse {
   answer: string;
   spokenText: string;
-  category: 'blood_pressure' | 'medication' | 'doctor' | 'alerts' | 'targets' | 'symptoms' | 'activity' | 'general';
+  category: 'blood_pressure' | 'medication' | 'doctor' | 'alerts' | 'targets' | 'symptoms' | 'activity' | 'food' | 'reminders' | 'general';
   isActionLogged?: boolean;
   loggedActionDescription?: string;
+  suggestedAction?: {
+    label: string;
+    tab: AppTab;
+  };
   followUpSuggestions: string[];
 }
 
 export class MedicalAIService {
   /**
    * Evaluates whether a user's voice or text message is inquiring about or commanding
-   * medical information handling.
+   * medical information handling or app AI features.
    */
   public static isMedicalQueryOrCommand(input: string): boolean {
     const q = input.toLowerCase().trim();
@@ -27,6 +31,9 @@ export class MedicalAIService {
       'doctor', 'physician', 'cardiologist', 'appointment', 'dr.', 'dr ', 'clinic',
       'alert', 'alerts', 'risk', 'warning', 'concern',
       'target', 'targets', 'normal range', 'healthy range', 'goal',
+      'food', 'scanner', 'meal', 'nutrition', 'sodium', 'carbs', 'calories', 'recipe', 'diet',
+      'exercise', 'walk', 'activity', 'activities', 'hike', 'stretching',
+      'reminder', 'reminders', 'task', 'tasks',
       'how have i been', 'health trend', 'timeline', 'records', 'vitals'
     ];
 
@@ -35,7 +42,7 @@ export class MedicalAIService {
 
   /**
    * Processes a medical information query or voice command with linked live access
-   * to check-ins, medication logs, vitals history, doctor records, and profile targets.
+   * to check-ins, medication logs, vitals history, doctor records, food scanner, and profile targets.
    */
   public static processMedicalQuery(
     input: string,
@@ -77,6 +84,7 @@ export class MedicalAIService {
         category: 'blood_pressure',
         isActionLogged: true,
         loggedActionDescription: `Recorded BP ${sys}/${dia} mmHg, Pulse ${pulseVal} BPM`,
+        suggestedAction: { label: 'View Vitals & BP Register', tab: 'timeline' },
         followUpSuggestions: [
           'What are my medications today?',
           'Show blood pressure trend',
@@ -85,7 +93,49 @@ export class MedicalAIService {
       };
     }
 
-    // 2. Direct Voice / Text Medication Taking Command
+    // 2. Direct Voice / Text Physical Activity Logging
+    // Examples: "Log a 30 minute walk", "Log 20 mins of gardening", "I walked for 45 minutes"
+    if ((q.includes('log') || q.includes('record') || q.includes('walked') || q.includes('exercised')) && (q.includes('walk') || q.includes('hike') || q.includes('gardening') || q.includes('stretch') || q.includes('housework') || q.includes('exercise'))) {
+      const minMatch = q.match(/(\d{1,3})\s*(?:min|mins|minutes)/);
+      const duration = minMatch ? parseInt(minMatch[1], 10) : 30;
+
+      let category: ActivityLogEntry['category'] = 'walking';
+      let title = 'Neighborhood Walk';
+      if (q.includes('hike') || q.includes('trail')) { category = 'hiking'; title = 'Nature Trail Walk'; }
+      else if (q.includes('garden')) { category = 'gardening'; title = 'Gardening'; }
+      else if (q.includes('stretch') || q.includes('yoga')) { category = 'stretching'; title = 'Gentle Stretching'; }
+      else if (q.includes('housework') || q.includes('clean')) { category = 'housework'; title = 'Housework Session'; }
+
+      const newEntry: ActivityLogEntry = {
+        id: `act-${Date.now()}`,
+        date: todayStr,
+        title,
+        category,
+        durationMinutes: duration,
+        intensity: duration > 40 ? 'moderate' : 'gentle',
+        timeOfDay: 'morning',
+        timestamp: new Date().toISOString(),
+      };
+      HealthStorageService.addActivityLog(newEntry);
+
+      const msg = `Wonderful! I have logged ${duration} minutes of ${title.toLowerCase()} for today. Excellent for your heart health and longevity!`;
+
+      return {
+        answer: msg,
+        spokenText: msg,
+        category: 'activity',
+        isActionLogged: true,
+        loggedActionDescription: `Logged ${duration} min ${title}`,
+        suggestedAction: { label: 'View Physical Activities', tab: 'activities' },
+        followUpSuggestions: [
+          'How much activity did I do this week?',
+          'What is my latest blood pressure?',
+          'What are my medications today?'
+        ],
+      };
+    }
+
+    // 3. Direct Voice / Text Medication Taking Command
     // Examples: "I took my morning pills", "Took Lisinopril", "I took all my meds"
     if (q.includes('took') || q.includes('taken') || q.includes('swallowed') || q.includes('drank my meds')) {
       const allTodayLogs = HealthStorageService.getMedicationLogsForDate(todayStr);
@@ -100,6 +150,7 @@ export class MedicalAIService {
           category: 'medication',
           isActionLogged: true,
           loggedActionDescription: 'Confirmed morning medications taken',
+          suggestedAction: { label: 'View Medication Schedule', tab: 'timeline' },
           followUpSuggestions: [
             'What medications are left today?',
             'What is my latest blood pressure?',
@@ -117,6 +168,7 @@ export class MedicalAIService {
           category: 'medication',
           isActionLogged: true,
           loggedActionDescription: 'Confirmed evening medications taken',
+          suggestedAction: { label: 'View Medication Schedule', tab: 'timeline' },
           followUpSuggestions: [
             'What medications are left today?',
             'What is my latest blood pressure?'
@@ -135,6 +187,7 @@ export class MedicalAIService {
           category: 'medication',
           isActionLogged: true,
           loggedActionDescription: `Marked ${matchingMed.medicationName} taken`,
+          suggestedAction: { label: 'View Medication Schedule', tab: 'timeline' },
           followUpSuggestions: [
             'What other medications do I have today?',
             'What is my blood pressure?'
@@ -143,8 +196,27 @@ export class MedicalAIService {
       }
     }
 
-    // 3. Blood Pressure & Pulse Inquiries
-    // Examples: "What is my latest blood pressure?", "What was my pulse yesterday?", "Tell me my vitals"
+    // 4. Food Scanner & Nutrition Inquiries
+    // Examples: "How does the food scanner work?", "Is salmon good for blood pressure?", "Open food scanner", "How much sodium?"
+    if (q.includes('food') || q.includes('scanner') || q.includes('camera') || q.includes('plate') || q.includes('sodium') || q.includes('carbs') || q.includes('nutrition') || q.includes('eat') || q.includes('dining')) {
+      const spoken = `Our AI Food Scanner lets you take a photo or scan any meal to instantly check sodium levels, carbohydrates, and blood pressure safety. It helps keep your daily sodium below 2000 milligrams.`;
+
+      const written = `🥗 **AI Food & Dining Out Scanner**:\n• **Capabilities**: Take or upload a meal photo, analyze restaurant menu items, and check real-time blood pressure & glycemic safety.\n• **Heart-Healthy Sodium Limit**: Under **2,000 mg/day**\n• **Tip**: High-potassium foods (spinach, avocado, salmon, sweet potatoes) help buffer sodium.\n• **Live Scanner**: Tap below to open the camera scanner anytime!`;
+
+      return {
+        answer: written,
+        spokenText: spoken,
+        category: 'food',
+        suggestedAction: { label: 'Open AI Food Scanner', tab: 'scanner' },
+        followUpSuggestions: [
+          'Show healthy low-sodium recipes',
+          'What is my latest blood pressure?',
+          'What medications do I have today?'
+        ],
+      };
+    }
+
+    // 5. Blood Pressure & Pulse Inquiries
     if (q.includes('blood pressure') || q.includes('bp') || q.includes('pulse') || q.includes('heart rate') || q.includes('vitals')) {
       const bpRecords = sortedDesc.filter((r) => r.bloodPressure?.measured && r.bloodPressure.systolic);
       
@@ -154,6 +226,7 @@ export class MedicalAIService {
           answer: msg,
           spokenText: msg,
           category: 'blood_pressure',
+          suggestedAction: { label: 'Open BP & Pulse Register', tab: 'timeline' },
           followUpSuggestions: ['Log BP 120/80 pulse 72', 'What are my healthy targets?'],
         };
       }
@@ -168,7 +241,6 @@ export class MedicalAIService {
         day: 'numeric',
       });
 
-      // Calculate 30-day average
       const avgSys = Math.round(bpRecords.reduce((sum, r) => sum + (r.bloodPressure.systolic || 0), 0) / bpRecords.length);
       const avgDia = Math.round(bpRecords.reduce((sum, r) => sum + (r.bloodPressure.diastolic || 0), 0) / bpRecords.length);
       const avgPulse = Math.round(bpRecords.reduce((sum, r) => sum + (r.bloodPressure.pulse || 72), 0) / bpRecords.length);
@@ -186,6 +258,7 @@ export class MedicalAIService {
         answer: written,
         spokenText: spoken,
         category: 'blood_pressure',
+        suggestedAction: { label: 'Open BP & Pulse Register', tab: 'timeline' },
         followUpSuggestions: [
           'What medications do I have today?',
           'Have my readings improved?',
@@ -194,8 +267,7 @@ export class MedicalAIService {
       };
     }
 
-    // 4. Medication Schedule & Adherence Inquiries
-    // Examples: "What medications do I have today?", "Did I miss any pills?", "What is my medicine schedule?"
+    // 6. Medication Schedule & Adherence Inquiries
     if (q.includes('medicine') || q.includes('medication') || q.includes('meds') || q.includes('pills') || q.includes('dose') || q.includes('prescription')) {
       const todayLogs = HealthStorageService.getMedicationLogsForDate(todayStr);
       const activeMeds = profile.medications.filter((m) => m.active !== false);
@@ -222,6 +294,7 @@ export class MedicalAIService {
         answer: written,
         spokenText: spokenSummary,
         category: 'medication',
+        suggestedAction: { label: 'Open Medication Tracker', tab: 'timeline' },
         followUpSuggestions: [
           'I took all morning meds',
           'What is my latest blood pressure?',
@@ -230,8 +303,31 @@ export class MedicalAIService {
       };
     }
 
-    // 5. Doctor Visits, Appointments & Clinical Instructions
-    // Examples: "What did my doctor say?", "When is my next appointment?", "Doctor recommendations"
+    // 7. Physical Activities Summary
+    if (q.includes('exercise') || q.includes('activity') || q.includes('activities') || q.includes('walk') || q.includes('hike') || q.includes('active') || q.includes('minutes')) {
+      const allActs = HealthStorageService.getAllActivityLogs();
+      const allEntries: ActivityLogEntry[] = Object.values(allActs).flat();
+      const totalMinutes = allEntries.reduce((sum: number, a: ActivityLogEntry) => sum + a.durationMinutes, 0);
+      const totalSessions = allEntries.length;
+
+      const spoken = `Over the past 30 days, you logged ${totalMinutes} active minutes across ${totalSessions} sessions, averaging ${Math.round(totalMinutes / 30)} minutes per day.`;
+
+      const written = `🏃 **Physical Activity & Vitality Summary**:\n• Total Active Minutes: **${totalMinutes} mins** (${totalSessions} sessions logged)\n• Daily Goal Target: **30 minutes/day** (${totalMinutes >= 600 ? '✅ Target Met!' : 'Keep going!'})\n• Top Activities: Neighborhood walks, trail hikes, and home activities.`;
+
+      return {
+        answer: written,
+        spokenText: spoken,
+        category: 'activity',
+        suggestedAction: { label: 'Open Physical Activities', tab: 'activities' },
+        followUpSuggestions: [
+          'Log a 30 minute walk',
+          'What is my latest blood pressure?',
+          'What medications do I have today?'
+        ],
+      };
+    }
+
+    // 8. Doctor Visits & Clinical Instructions
     if (q.includes('doctor') || q.includes('physician') || q.includes('appointment') || q.includes('cardiologist') || q.includes('dr.') || q.includes('dr ')) {
       const spoken = `Your last cardiology consultation with Doctor Sarah Jenkins was on September 14. Doctor Jenkins noted stable blood pressure control, adjusted Lisinopril to 10 milligrams, and recommended keeping sodium under 2000 milligrams daily. Your next checkup is scheduled in December.`;
 
@@ -241,6 +337,7 @@ export class MedicalAIService {
         answer: written,
         spokenText: spoken,
         category: 'doctor',
+        suggestedAction: { label: 'View Doctor & Clinical Care', tab: 'timeline' },
         followUpSuggestions: [
           'What is my latest blood pressure?',
           'What medications do I have today?',
@@ -249,8 +346,7 @@ export class MedicalAIService {
       };
     }
 
-    // 6. Clinical Risk Alerts & Warnings
-    // Examples: "Are there any health alerts?", "Do I have any health risks?", "Why is my avatar worried?"
+    // 9. Clinical Risk Alerts
     if (q.includes('alert') || q.includes('alerts') || q.includes('risk') || q.includes('warning') || q.includes('concern')) {
       const alerts: SmartAlert[] = HealthAnalyticsService.evaluateSmartAlerts(history, profile);
 
@@ -260,6 +356,7 @@ export class MedicalAIService {
           answer: `🛡️ **Smart Risk Alerts Status**:\n• **Active Alerts**: 0 pending\n• **Summary**: Key health indicators (blood pressure, medication compliance, and daily energy) are in a safe and steady range.`,
           spokenText: msg,
           category: 'alerts',
+          suggestedAction: { label: 'View Smart Risk Alerts', tab: 'alerts' },
           followUpSuggestions: [
             'What is my latest blood pressure?',
             'What medications do I have today?'
@@ -275,6 +372,7 @@ export class MedicalAIService {
         answer: written,
         spokenText: spoken,
         category: 'alerts',
+        suggestedAction: { label: 'View Smart Risk Alerts', tab: 'alerts' },
         followUpSuggestions: [
           'What is my latest blood pressure?',
           'What did my doctor say?'
@@ -282,8 +380,7 @@ export class MedicalAIService {
       };
     }
 
-    // 7. Personal Targets & Normal Guidelines
-    // Examples: "What should my blood pressure be?", "What is my normal pulse?", "What are my healthy targets?"
+    // 10. Personal Targets & Normal Guidelines
     if (q.includes('target') || q.includes('normal range') || q.includes('healthy range') || q.includes('goal') || q.includes('should my')) {
       const spoken = `Your personalized healthy target for blood pressure is ${profile.targetSystolicMin} to ${profile.targetSystolicMax} mmHg systolic, and ${profile.targetDiastolicMin} to ${profile.targetDiastolicMax} mmHg diastolic. A normal resting pulse is 60 to 100 beats per minute.`;
 
@@ -293,6 +390,7 @@ export class MedicalAIService {
         answer: written,
         spokenText: spoken,
         category: 'targets',
+        suggestedAction: { label: 'Open BP & Pulse Register', tab: 'timeline' },
         followUpSuggestions: [
           'What is my latest blood pressure?',
           'Log BP 120/80 pulse 72',
@@ -301,6 +399,20 @@ export class MedicalAIService {
       };
     }
 
-    return null;
+    // General fallback linked assistant response
+    const generalSpoken = `I have linked access to all your health records, food scanner, blood pressure vitals, medications, and physical activity logs. How can I assist you today?`;
+    const generalWritten = `🤖 **CarePulse AI Assistant**:\nI have live linked access across your entire health profile:\n• 💓 **Blood Pressure & Pulse**: Track vitals, log readings, and view trends.\n• 💊 **Medications**: Check prescriptions, timings, and confirm doses.\n• 🍎 **Food Scanner**: Analyze meals, sodium content, and dining out safety.\n• 🏃 **Physical Activity**: Log walks, hikes, and daily active minutes.\n• 🩺 **Doctor Care**: Review clinical notes and prepare questions.\n\nAsk me anything by voice or typing!`;
+
+    return {
+      answer: generalWritten,
+      spokenText: generalSpoken,
+      category: 'general',
+      followUpSuggestions: [
+        'What is my latest blood pressure?',
+        'What medications do I have today?',
+        'Open AI Food Scanner',
+        'How much activity did I do this week?'
+      ],
+    };
   }
 }

@@ -21,6 +21,7 @@ import { RemindersTracker } from './components/reminders/RemindersTracker';
 import { BayAreaHappenings } from './components/happenings/BayAreaHappenings';
 import { HealthyRecipes } from './components/recipes/HealthyRecipes';
 import { AIFoodScanner } from './components/foodscanner/AIFoodScanner';
+import { VoiceOrTextAssistant } from './components/assistant/VoiceOrTextAssistant';
 import { SettingsModal } from './components/settings/SettingsModal';
 
 export const App: React.FC = () => {
@@ -218,6 +219,16 @@ export const App: React.FC = () => {
               profile={profile}
               onNavigateToRecipes={() => setActiveTab('recipes')}
               onNavigateToCheckin={() => setActiveTab('checkin')}
+            />
+          )}
+
+          {/* Tab 11: Voice or Text Assistant with Linked Access to all AI & Health data */}
+          {activeTab === 'assistant' && (
+            <VoiceOrTextAssistant
+              profile={profile}
+              history={history}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              onUpdateProfile={handleUpdateProfile}
             />
           )}
         </main>

@@ -13,7 +13,8 @@ import {
   ChevronLeft, 
   ChevronRight, 
   ShieldCheck,
-  Sliders
+  Sliders,
+  Bot
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -101,6 +102,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           shortLabel: 'Activities',
           icon: Footprints,
           accentColor: 'text-teal-400',
+        },
+        {
+          id: 'assistant',
+          label: 'Voice or Text Assistant',
+          shortLabel: 'AI Assistant',
+          icon: Bot,
+          badge: 'Live AI',
+          badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
+          accentColor: 'text-purple-400',
         },
       ],
     },

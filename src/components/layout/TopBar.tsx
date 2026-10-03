@@ -16,7 +16,8 @@ import {
   CalendarClock, 
   Utensils, 
   Camera, 
-  Compass
+  Compass,
+  Bot
 } from 'lucide-react';
 
 interface TopBarProps {
@@ -80,6 +81,11 @@ const TAB_TITLES: Record<AppTab, { title: string; subtitle: string; icon: React.
     title: 'Bay Area Fun & Community Events',
     subtitle: 'Curated senior-friendly outdoor activities, cultural events, and festivals',
     icon: Compass,
+  },
+  assistant: {
+    title: 'Voice & Text AI Assistant',
+    subtitle: 'Hands-free voice speaker or text chat with linked access to all medical, food, and vitals data',
+    icon: Bot,
   },
 };
 

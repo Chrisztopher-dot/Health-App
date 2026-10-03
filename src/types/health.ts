@@ -223,6 +223,7 @@ export interface RecipeItem {
 export type AppTab = 
   | 'checkin' 
   | 'conversational' 
+  | 'assistant'
   | 'timeline' 
   | 'alerts' 
   | 'medicine' 
