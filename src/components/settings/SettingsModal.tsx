@@ -18,7 +18,11 @@ import {
   Play,
   Check,
   Download,
-  Upload
+  Upload,
+  Sun,
+  Moon,
+  Monitor,
+  Palette
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -130,6 +134,118 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="w-full text-base p-3 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Theme & Appearance Mode (System Default, Dark, Light) */}
+          <div className="space-y-3 pt-4 border-t border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-teal-600" />
+                  Appearance & Layout Theme
+                </h3>
+                <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                  Choose how your application layout renders. Defaults to your device&apos;s system mode.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* System Mode (Default) */}
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, themeMode: 'system' })}
+                className={`p-3.5 rounded-2xl border-2 text-left transition-all flex flex-col justify-between gap-2.5 ${
+                  (formData.themeMode || 'system') === 'system'
+                    ? 'border-teal-600 bg-teal-50/80 shadow-sm ring-2 ring-teal-200'
+                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-teal-100 text-teal-800">
+                      <Monitor className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-slate-900 text-sm">System Mode</div>
+                      <div className="text-[10px] font-black uppercase text-teal-700 bg-teal-100/80 px-1.5 py-0.2 rounded w-fit">
+                        Recommended (Default)
+                      </div>
+                    </div>
+                  </div>
+                  {(formData.themeMode || 'system') === 'system' && (
+                    <span className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3.5 h-3.5" />
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                  Automatically syncs with your device daylight and night settings with adaptive wellbeing colors.
+                </p>
+              </button>
+
+              {/* Dark / Night Mode */}
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, themeMode: 'dark' })}
+                className={`p-3.5 rounded-2xl border-2 text-left transition-all flex flex-col justify-between gap-2.5 ${
+                  formData.themeMode === 'dark'
+                    ? 'border-indigo-600 bg-indigo-50/80 shadow-sm ring-2 ring-indigo-200'
+                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-slate-800 text-indigo-300">
+                      <Moon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-slate-900 text-sm">Dark / Night</div>
+                      <div className="text-[10px] font-bold text-slate-500">Low Eye Strain</div>
+                    </div>
+                  </div>
+                  {formData.themeMode === 'dark' && (
+                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3.5 h-3.5" />
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                  Deep slate atmosphere with glowing ambient wellbeing palettes suited for night and sensitive eyes.
+                </p>
+              </button>
+
+              {/* Light Mode */}
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, themeMode: 'light' })}
+                className={`p-3.5 rounded-2xl border-2 text-left transition-all flex flex-col justify-between gap-2.5 ${
+                  formData.themeMode === 'light'
+                    ? 'border-amber-600 bg-amber-50/80 shadow-sm ring-2 ring-amber-200'
+                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-amber-100 text-amber-800">
+                      <Sun className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-slate-900 text-sm">Light Mode</div>
+                      <div className="text-[10px] font-bold text-slate-500">Daytime Clarity</div>
+                    </div>
+                  </div>
+                  {formData.themeMode === 'light' && (
+                    <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3.5 h-3.5" />
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                  Clean, bright daytime aesthetic with crisp contrast and pastel health-adaptive highlights.
+                </p>
+              </button>
             </div>
           </div>
 

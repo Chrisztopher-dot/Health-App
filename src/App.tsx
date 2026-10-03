@@ -55,6 +55,30 @@ export const App: React.FC = () => {
     });
   }, [profile.voicePersona, profile.voiceId, profile.voicePitch]);
 
+  // Reactive listener for OS system dark/light mode
+  const [systemIsDark, setSystemIsDark] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      setSystemIsDark(e.matches);
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    } else if (mediaQuery.addListener) {
+      mediaQuery.addListener(handleChange);
+      return () => mediaQuery.removeListener(handleChange);
+    }
+  }, []);
+
   const handleUpdateProfile = (updated: UserProfile) => {
     setProfile(updated);
     HealthStorageService.saveProfile(updated);
@@ -96,9 +120,17 @@ export const App: React.FC = () => {
     ? HealthAnalyticsService.generateDailySummary(todayRecord, history, profile)
     : null;
 
-  // Dynamic Wellbeing Avatar State & Adaptive Theme
+  // Resolve Dark / Night vs Light mode based on profile setting ('system' | 'dark' | 'light')
+  const isDarkMode =
+    profile.themeMode === 'dark'
+      ? true
+      : profile.themeMode === 'light'
+      ? false
+      : systemIsDark;
+
+  // Dynamic Wellbeing Avatar State & Adaptive Theme (Dual-mode support)
   const avatarState = HealthAnalyticsService.evaluateWellbeingAvatarState(history, profile);
-  const activeTheme = avatarState.theme || ThemeService.getThemeForCategory(avatarState.category);
+  const activeTheme = ThemeService.getThemeForCategory(avatarState.category, isDarkMode);
 
   return (
     <div className={`min-h-screen min-h-screen-dynamic bg-gradient-to-br ${activeTheme.bgGradient} text-slate-900 flex relative transition-colors duration-500 ${textScaleClasses}`}>

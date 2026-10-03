@@ -75,6 +75,7 @@ export const DEFAULT_PROFILE: UserProfile = {
   textScale: 'large',
   soundEnabled: false, // Default to muted
   voiceSpeed: 1.0, // Default to normal speed (1.0x)
+  themeMode: 'system', // Default to System Mode (matches OS dark/light)
 };
 
 export class HealthStorageService {

@@ -150,6 +150,7 @@ export interface UserProfile {
   voicePersona?: string; // 'samantha' | 'alex' | 'daniel' | 'karen' | 'victoria' | 'fred' | 'custom'
   voiceId?: string; // Specific browser voiceURI or voice name
   voicePitch?: number; // 0.8 to 1.2
+  themeMode?: 'system' | 'dark' | 'light'; // 'system' is default
 }
 
 export type ReminderPriority = 'urgent' | 'less_urgent';

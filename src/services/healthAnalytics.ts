@@ -195,7 +195,10 @@ export class HealthAnalyticsService {
       averageEnergy: parseFloat(avgEnergy.toFixed(1)),
       averageSleep: parseFloat(avgSleep.toFixed(1)),
       recommendation,
-      theme: ThemeService.getThemeForCategory(category),
+      theme: ThemeService.getThemeForCategory(
+        category,
+        ThemeService.resolveIsDarkMode(profile?.themeMode || 'system')
+      ),
     };
   }
 
