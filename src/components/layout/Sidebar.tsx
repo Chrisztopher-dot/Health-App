@@ -105,8 +105,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'assistant',
-          label: 'Voice or Text Assistant',
-          shortLabel: 'AI Assistant',
+          label: 'Voice & Text Assistant',
+          shortLabel: 'Voice & Text',
           icon: Bot,
           badge: 'Live AI',
           badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',

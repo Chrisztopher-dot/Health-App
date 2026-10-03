@@ -222,7 +222,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          {/* Tab 11: Voice or Text Assistant with Linked Access to all AI & Health data */}
+          {/* Tab 11: Voice & Text Assistant with Linked Access to all AI & Health data */}
           {activeTab === 'assistant' && (
             <VoiceOrTextAssistant
               profile={profile}

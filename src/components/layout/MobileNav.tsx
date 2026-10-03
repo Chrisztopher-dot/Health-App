@@ -57,7 +57,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   ];
 
   const moreItems: { id: AppTab | 'settings'; label: string; icon: React.ElementType; badge?: string | number }[] = [
-    { id: 'assistant', label: 'Voice/Text Assistant', icon: Bot, badge: 'AI' },
+    { id: 'assistant', label: 'Voice & Text Assistant', icon: Bot, badge: 'AI' },
     { id: 'reminders', label: 'Reminders & Tasks', icon: CalendarClock },
     { id: 'scanner', label: 'AI Food Scanner', icon: Camera, badge: 'AI' },
     { id: 'happenings', label: 'Bay Area Events', icon: Compass },
