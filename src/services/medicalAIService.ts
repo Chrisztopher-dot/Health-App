@@ -1,11 +1,39 @@
-import { UserProfile, CheckInRecord, SmartAlert, AppTab, ActivityLogEntry, ReminderItem } from '../types/health';
+import { 
+  UserProfile, 
+  CheckInRecord, 
+  SmartAlert, 
+  AppTab, 
+  ActivityLogEntry, 
+  ReminderItem, 
+  ScannedFoodResult, 
+  RecipeItem, 
+  MedicationLogEntry, 
+  BayAreaEvent,
+  HealthMood
+} from '../types/health';
 import { HealthStorageService } from './healthStorage';
 import { HealthAnalyticsService } from './healthAnalytics';
+import { FoodScannerService } from './foodScannerService';
+import { RecipeGeneratorService } from './recipeGeneratorService';
 
 export interface MedicalAIResponse {
   answer: string;
   spokenText: string;
-  category: 'blood_pressure' | 'medication' | 'doctor' | 'alerts' | 'targets' | 'symptoms' | 'activity' | 'food' | 'reminders' | 'general';
+  category: 
+    | 'blood_pressure' 
+    | 'medication' 
+    | 'doctor' 
+    | 'alerts' 
+    | 'targets' 
+    | 'symptoms' 
+    | 'activity' 
+    | 'food' 
+    | 'recipes' 
+    | 'reminders' 
+    | 'checkin' 
+    | 'happenings' 
+    | 'settings' 
+    | 'general';
   isActionLogged?: boolean;
   loggedActionDescription?: string;
   suggestedAction?: {
@@ -14,6 +42,26 @@ export interface MedicalAIResponse {
   };
   followUpSuggestions: string[];
   taskItems?: ReminderItem[];
+  foodScanResult?: ScannedFoodResult;
+  recipes?: RecipeItem[];
+  bpRecord?: {
+    systolic: number;
+    diastolic: number;
+    pulse?: number;
+    date: string;
+    inTarget: boolean;
+  };
+  medicationList?: MedicationLogEntry[];
+  activityLog?: ActivityLogEntry;
+  checkInSummary?: {
+    mood: string;
+    energy: number;
+    sleep: number;
+    bp?: string;
+    symptoms: string[];
+  };
+  eventList?: BayAreaEvent[];
+  updatedProfile?: UserProfile;
 }
 
 export class MedicalAIService {
@@ -34,7 +82,9 @@ export class MedicalAIService {
       'target', 'targets', 'normal range', 'healthy range', 'goal',
       'food', 'scanner', 'meal', 'nutrition', 'sodium', 'carbs', 'calories', 'recipe', 'diet',
       'exercise', 'walk', 'activity', 'activities', 'hike', 'stretching',
-      'reminder', 'reminders', 'task', 'tasks',
+      'reminder', 'reminders', 'task', 'tasks', 'voicemail',
+      'check in', 'check-in', 'mood', 'energy', 'symptom', 'symptoms',
+      'events', 'happenings', 'bay area', 'weekend', 'voice', 'speaker',
       'how have i been', 'health trend', 'timeline', 'records', 'vitals'
     ];
 
@@ -42,8 +92,9 @@ export class MedicalAIService {
   }
 
   /**
-   * Processes a medical information query or voice command with linked live access
-   * to check-ins, medication logs, vitals history, doctor records, food scanner, and profile targets.
+   * Processes a query or voice command with fully synchronized linked live access
+   * across all AI features: Vitals, Food Scanner, Recipes, Medications, Reminders,
+   * Daily Check-In, Activities, Doctor Appointments, and Alerts.
    */
   public static processMedicalQuery(
     input: string,
@@ -58,10 +109,193 @@ export class MedicalAIService {
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
 
-    // 1. Direct Voice / Text Logging for Blood Pressure & Pulse
-    // Examples: "Log blood pressure 125 over 82", "BP is 130/85 pulse 76", "Record 120/80"
-    const isLogIntent = q.includes('log') || q.includes('record') || q.includes('my bp is') || q.includes('reading is') || q.includes('measured');
+    // =========================================================================
+    // 1. DIRECT DAILY CHECK-IN VIA VOICE & TEXT ASSISTANT
+    // =========================================================================
+    if (
+      q.includes('check in') || 
+      q.includes('check-in') || 
+      q.includes('log my mood') ||
+      (q.includes('i feel') && (q.includes('great') || q.includes('good') || q.includes('okay') || q.includes('tired') || q.includes('sick')))
+    ) {
+      let detectedMood: HealthMood = 'good';
+      if (q.includes('great') || q.includes('wonderful') || q.includes('very good')) detectedMood = 'very_good';
+      else if (q.includes('okay') || q.includes('fine') || q.includes('so so')) detectedMood = 'okay';
+      else if (q.includes('not great') || q.includes('tired') || q.includes('unwell')) detectedMood = 'not_great';
+      else if (q.includes('poor') || q.includes('bad') || q.includes('sick')) detectedMood = 'poor';
+
+      let energy = 7;
+      const energyMatch = q.match(/energy\s*(?:is|level)?\s*(\d{1,2})/);
+      if (energyMatch) energy = Math.min(10, Math.max(1, parseInt(energyMatch[1], 10)));
+      else if (detectedMood === 'very_good') energy = 9;
+      else if (detectedMood === 'not_great') energy = 5;
+      else if (detectedMood === 'poor') energy = 3;
+
+      let sleep = 7;
+      const sleepMatch = q.match(/sleep\s*(?:is|quality|of)?\s*(\d{1,2})/);
+      if (sleepMatch) sleep = Math.min(10, Math.max(1, parseInt(sleepMatch[1], 10)));
+
+      const symptomsList: string[] = [];
+      if (q.includes('headache')) symptomsList.push('Headache');
+      if (q.includes('dizziness') || q.includes('dizzy')) symptomsList.push('Dizziness');
+      if (q.includes('stiffness') || q.includes('joint')) symptomsList.push('Joint Stiffness');
+      if (q.includes('fatigue') || q.includes('tired')) symptomsList.push('Fatigue');
+
+      const existingToday = HealthStorageService.getTodayCheckIn();
+      const newRecord: CheckInRecord = {
+        id: existingToday?.id || `checkin-${todayStr}`,
+        date: todayStr,
+        timestamp: new Date().toISOString(),
+        mood: detectedMood,
+        energyLevel: energy,
+        sleepQuality: sleep,
+        painLevel: symptomsList.length > 0 ? 2 : 0,
+        symptoms: symptomsList,
+        medicationStatus: 'taken',
+        bloodPressure: existingToday?.bloodPressure || { measured: false },
+        dailyNotes: input,
+        inputMode: 'conversational',
+      };
+
+      HealthStorageService.addCheckIn(newRecord);
+
+      const moodLabel = detectedMood.replace('_', ' ');
+      const spoken = `I have completed and recorded your daily check-in for today. Mood is ${moodLabel}, energy level ${energy} out of 10, and sleep quality ${sleep} out of 10. Your health diary is up to date!`;
+      const written = `📝 **Daily Health Check-In Completed (${todayStr})**:\n• **Mood**: ${detectedMood.toUpperCase()} 😊\n• **Energy Level**: **${energy} / 10**\n• **Sleep Quality**: **${sleep} / 10**\n• **Reported Symptoms**: ${symptomsList.length > 0 ? symptomsList.join(', ') : 'None'}\n• **Status**: Saved securely to your Health Timeline!`;
+
+      return {
+        answer: written,
+        spokenText: spoken,
+        category: 'checkin',
+        isActionLogged: true,
+        loggedActionDescription: `Completed check-in: Mood ${moodLabel}, Energy ${energy}/10`,
+        suggestedAction: { label: 'View Health Timeline', tab: 'timeline' },
+        checkInSummary: {
+          mood: moodLabel,
+          energy,
+          sleep,
+          symptoms: symptomsList,
+        },
+        followUpSuggestions: [
+          'What are my medications today?',
+          'Log BP 120/80 pulse 72',
+          'Listen to what is there to do'
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 2. FOOD SCANNER & DIRECT MEAL NUTRITION CALCULATION
+    // =========================================================================
+    if (
+      q.includes('scan food') || 
+      q.includes('scan meal') || 
+      q.includes('analyze food') || 
+      q.includes('i ate') || 
+      q.includes('i had for lunch') || 
+      q.includes('i had for dinner') || 
+      q.includes('i had for breakfast') || 
+      (q.includes('how many calories') && (q.includes('in') || q.includes('salmon') || q.includes('chicken') || q.includes('soup') || q.includes('salad'))) ||
+      (q.includes('sodium in') || q.includes('carbs in'))
+    ) {
+      let dishName = input
+        .replace(/^(analyze food|scan food|scan meal|how many calories in|how much sodium in|i ate|i had for lunch|i had for dinner|i had for breakfast|calculate nutrition for)\s+/i, '')
+        .trim();
+
+      if (!dishName) dishName = 'Grilled Salmon with Quinoa & Steamed Asparagus';
+
+      const scanResult = FoodScannerService.searchAndAnalyzeDish(dishName, 1.0, 'home_cooked');
+      FoodScannerService.saveScanToHistory(scanResult);
+
+      const sodiumLevel = scanResult.sodiumMg;
+      const heartHealthNote = sodiumLevel <= 400 
+        ? 'Excellent heart-healthy choice with low sodium!' 
+        : sodiumLevel <= 700 
+        ? 'Moderate sodium content. Balanced by natural potassium.' 
+        : 'Higher sodium item. Drink water and balance with a low-sodium dinner.';
+
+      const spoken = `Analyzed ${scanResult.name}. It delivers ${scanResult.calories} calories, ${scanResult.sodiumMg} milligrams of sodium, and ${scanResult.carbsGrams} grams of carbohydrates. ${heartHealthNote}`;
+
+      let written = `🥗 **Plate & Food Scanner Analysis: ${scanResult.name}**\n\n`;
+      written += `• **Calories**: **${scanResult.calories} kcal** | **Health Score**: **${scanResult.healthScore}/100**\n`;
+      written += `• **Sodium**: **${scanResult.sodiumMg} mg** (${scanResult.bloodPressureAssessment.ratingLabel})\n`;
+      written += `• **Carbohydrates**: **${scanResult.carbsGrams}g** (${scanResult.fiberGrams}g fiber, ${scanResult.netCarbsGrams}g net carbs)\n`;
+      written += `• **Protein**: **${scanResult.proteinGrams}g** | **Fat**: **${scanResult.fatGrams}g**\n`;
+      written += `• **Potassium**: **${scanResult.potassiumMg} mg** (Helps lower blood pressure)\n\n`;
+      written += `💡 **Senior Dietary Guidance**: ${scanResult.diningOutSmartTips[0] || 'Enjoy with extra fresh vegetables.'}`;
+
+      return {
+        answer: written,
+        spokenText: spoken,
+        category: 'food',
+        isActionLogged: true,
+        loggedActionDescription: `Scanned meal: ${scanResult.name} (${scanResult.sodiumMg}mg Na)`,
+        suggestedAction: { label: 'Open Plate Scanner', tab: 'scanner' },
+        foodScanResult: scanResult,
+        followUpSuggestions: [
+          'Show healthy low-sodium recipes',
+          'What is my latest blood pressure?',
+          'What medications do I have today?'
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 3. HEALTHY RECIPES & WEEKLY LOW-SODIUM MEAL PLANS
+    // =========================================================================
+    if (
+      q.includes('recipe') || 
+      q.includes('recipes') || 
+      q.includes('what should i cook') || 
+      q.includes('what should i eat') || 
+      q.includes('low sodium meal') || 
+      q.includes('dinner idea') ||
+      q.includes('breakfast idea')
+    ) {
+      const syncResult = RecipeGeneratorService.syncWeeklyRecipes();
+      const allWeekly = syncResult.recipes;
+
+      let filteredRecipes = allWeekly;
+      if (q.includes('breakfast')) {
+        filteredRecipes = allWeekly.filter((r: RecipeItem) => r.mealType === 'breakfast');
+      } else if (q.includes('lunch')) {
+        filteredRecipes = allWeekly.filter((r: RecipeItem) => r.mealType === 'lunch');
+      } else if (q.includes('dinner') || q.includes('soup') || q.includes('stew')) {
+        filteredRecipes = allWeekly.filter((r: RecipeItem) => r.mealType === 'dinner');
+      }
+
+      const topThree = (filteredRecipes.length > 0 ? filteredRecipes : allWeekly).slice(0, 3);
+      const first = topThree[0];
+
+      const spoken = `Here are this week's featured heart-healthy recipes from the "${syncResult.currentTheme.title}" collection. I recommend the ${first.title}, with only ${first.sodiumMgPerServing} milligrams of sodium per serving.`;
+
+      let written = `🍲 **Featured Heart-Healthy Recipes (${syncResult.currentTheme.bannerEmoji} ${syncResult.currentTheme.title})**:\n\n`;
+      topThree.forEach((rec: RecipeItem, idx: number) => {
+        written += `**${idx + 1}. ${rec.title}** (${rec.mealType.toUpperCase()})\n`;
+        written += `• 🧂 Sodium: **${rec.sodiumMgPerServing} mg/serving** | 🔥 Calories: **${rec.caloriesPerServing} kcal**\n`;
+        written += `• ⏱ Time: ${rec.prepTimeMinutes + rec.cookTimeMinutes} mins | 🥬 ${rec.description}\n\n`;
+      });
+
+      return {
+        answer: written,
+        spokenText: spoken,
+        category: 'recipes',
+        suggestedAction: { label: 'Open Healthy Recipes', tab: 'recipes' },
+        recipes: topThree,
+        followUpSuggestions: [
+          `Add ${first.title.split(' ')[0]} ingredients to grocery list`,
+          'Scan my meal photo',
+          'What is my latest blood pressure?'
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 4. BLOOD PRESSURE & PULSE LOGGING & INQUIRIES
+    // =========================================================================
+    const isLogIntent = q.includes('log') || q.includes('record') || q.includes('my bp is') || q.includes('reading is') || q.includes('measured') || q.includes('register');
     const bpMatch = q.match(/(\d{2,3})\s*(?:\/|over|\s)\s*(\d{2,3})/);
+    
     if (isLogIntent && bpMatch) {
       const sys = parseInt(bpMatch[1], 10);
       const dia = parseInt(bpMatch[2], 10);
@@ -69,33 +303,170 @@ export class MedicalAIService {
       const pulseMatch = q.match(/(\d{2,3})\s*(?:bpm|pulse|heart rate|beats)/) || q.match(/(?:pulse|heart rate)\s*(?:is|of)?\s*(\d{2,3})/);
       const pulseVal = pulseMatch ? parseInt(pulseMatch[1], 10) : 72;
 
-      // Save to storage
-      HealthStorageService.registerBloodPressureAndPulse(todayStr, sys, dia, pulseVal, 'Logged via AI Assistant');
+      HealthStorageService.registerBloodPressureAndPulse(todayStr, sys, dia, pulseVal, 'Logged via Voice & Text AI Assistant');
 
       const isSysTarget = sys >= profile.targetSystolicMin && sys <= profile.targetSystolicMax;
       const targetNote = isSysTarget
-        ? `This is within your personal target range (${profile.targetSystolicMin}–${profile.targetSystolicMax} mmHg).`
+        ? `This is in your target range (${profile.targetSystolicMin}–${profile.targetSystolicMax} mmHg).`
         : `This is slightly outside your target of ${profile.targetSystolicMin}–${profile.targetSystolicMax} mmHg.`;
 
       const responseText = `I have logged your blood pressure reading of ${sys}/${dia} mmHg with a pulse of ${pulseVal} BPM for today. ${targetNote}`;
+      const written = `🩺 **Blood Pressure & Pulse Registered**:\n• Reading: **${sys}/${dia} mmHg**\n• Pulse: **${pulseVal} BPM**\n• Target Evaluation: ${isSysTarget ? '✅ Within Target Range' : '⚠️ Outside Ideal Target'}\n• Saved to Health Timeline & Vitals!`;
 
       return {
-        answer: responseText,
+        answer: written,
         spokenText: responseText,
         category: 'blood_pressure',
         isActionLogged: true,
         loggedActionDescription: `Recorded BP ${sys}/${dia} mmHg, Pulse ${pulseVal} BPM`,
         suggestedAction: { label: 'View Vitals & BP Register', tab: 'timeline' },
+        bpRecord: {
+          systolic: sys,
+          diastolic: dia,
+          pulse: pulseVal,
+          date: todayStr,
+          inTarget: isSysTarget,
+        },
         followUpSuggestions: [
           'What are my medications today?',
           'Show blood pressure trend',
-          'What are my healthy targets?'
+          'Listen to what is there to do'
         ],
       };
     }
 
-    // 2. Direct Voice / Text Physical Activity Logging
-    // Examples: "Log a 30 minute walk", "Log 20 mins of gardening", "I walked for 45 minutes"
+    if (q.includes('blood pressure') || q.includes('bp') || q.includes('pulse') || q.includes('heart rate') || q.includes('vitals')) {
+      const bpRecords = sortedDesc.filter((r) => r.bloodPressure?.measured && r.bloodPressure.systolic);
+      
+      if (bpRecords.length === 0) {
+        const msg = `You don't have any blood pressure readings recorded yet. Your personal systolic target is ${profile.targetSystolicMin} to ${profile.targetSystolicMax} mmHg. Would you like to log your reading now?`;
+        return {
+          answer: msg,
+          spokenText: msg,
+          category: 'blood_pressure',
+          suggestedAction: { label: 'Open BP & Pulse Register', tab: 'timeline' },
+          followUpSuggestions: ['Log BP 120/80 pulse 72', 'What are my healthy targets?'],
+        };
+      }
+
+      const latest = bpRecords[0];
+      const sys = latest.bloodPressure.systolic || 120;
+      const dia = latest.bloodPressure.diastolic || 80;
+      const pulseVal = latest.bloodPressure.pulse || 72;
+      const readingDate = latest.date;
+
+      const avgSys = Math.round(bpRecords.reduce((sum, r) => sum + (r.bloodPressure.systolic || 0), 0) / bpRecords.length);
+      const avgDia = Math.round(bpRecords.reduce((sum, r) => sum + (r.bloodPressure.diastolic || 0), 0) / bpRecords.length);
+
+      const inTarget = sys >= profile.targetSystolicMin && sys <= profile.targetSystolicMax;
+      const spoken = `Your most recent blood pressure was recorded on ${readingDate} at ${sys} over ${dia} mmHg, with a pulse of ${pulseVal} BPM. ${inTarget ? 'This reading is in your healthy target zone.' : 'Your personal target is ' + profile.targetSystolicMin + ' to ' + profile.targetSystolicMax + '.'} Your 30-day average is ${avgSys} over ${avgDia} mmHg.`;
+
+      const written = `📊 **Latest Blood Pressure & Pulse (${readingDate})**:\n• Reading: **${sys}/${dia} mmHg** (Pulse: **${pulseVal} BPM**)\n• Target Goal: ${profile.targetSystolicMin}–${profile.targetSystolicMax} / ${profile.targetDiastolicMin}–${profile.targetDiastolicMax} mmHg\n• 30-Day Average: **${avgSys}/${avgDia} mmHg**\n• Status: ${inTarget ? '✅ Within Target Range' : '⚠️ Outside Ideal Target'}`;
+
+      return {
+        answer: written,
+        spokenText: spoken,
+        category: 'blood_pressure',
+        suggestedAction: { label: 'Open BP & Pulse Register', tab: 'timeline' },
+        bpRecord: {
+          systolic: sys,
+          diastolic: dia,
+          pulse: pulseVal,
+          date: readingDate,
+          inTarget,
+        },
+        followUpSuggestions: [
+          'What medications do I have today?',
+          'Listen to what is there to do',
+          'What did my doctor say?'
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 5. MEDICATION TRACKER & PRESCRIPTION DOSES
+    // =========================================================================
+    if (q.includes('took') || q.includes('taken') || q.includes('swallowed') || q.includes('drank my meds')) {
+      const allTodayLogs = HealthStorageService.getMedicationLogsForDate(todayStr);
+
+      if (q.includes('morning') || q.includes('all') || q.includes('breakfast')) {
+        HealthStorageService.markTimeSlotStatus(todayStr, 'morning', 'taken');
+        const morningCount = allTodayLogs.filter((l) => l.timeOfDay === 'morning').length;
+        const msg = `Great job! I have confirmed all ${morningCount || 'your'} morning medications as taken for today.`;
+        const updatedLogs = HealthStorageService.getMedicationLogsForDate(todayStr);
+
+        return {
+          answer: `💊 **Morning Medications Confirmed Taken**:\n• Status: ✅ Taken (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})\n• Great job maintaining your blood pressure adherence!`,
+          spokenText: msg,
+          category: 'medication',
+          isActionLogged: true,
+          loggedActionDescription: 'Confirmed morning medications taken',
+          suggestedAction: { label: 'View Medication Schedule', tab: 'timeline' },
+          medicationList: updatedLogs,
+          followUpSuggestions: [
+            'What medications are left today?',
+            'What is my latest blood pressure?',
+            'Listen to what is there to do'
+          ],
+        };
+      }
+
+      // Check specific drug match
+      const matchingMed = allTodayLogs.find((l) => q.includes(l.medicationName.toLowerCase()));
+      if (matchingMed) {
+        HealthStorageService.updateMedicationLogStatus(todayStr, matchingMed.medicationId, 'taken');
+        const updatedLogs = HealthStorageService.getMedicationLogsForDate(todayStr);
+        const msg = `Confirmed! I marked ${matchingMed.medicationName} (${matchingMed.dosage}) as taken for today.`;
+        return {
+          answer: `💊 **Medication Taken**: ${matchingMed.medicationName} (${matchingMed.dosage})\n• Status: ✅ Taken for today\n• Instructions: ${matchingMed.timeOfDay.toUpperCase()}`,
+          spokenText: msg,
+          category: 'medication',
+          isActionLogged: true,
+          loggedActionDescription: `Marked ${matchingMed.medicationName} taken`,
+          suggestedAction: { label: 'View Medication Schedule', tab: 'timeline' },
+          medicationList: updatedLogs,
+          followUpSuggestions: [
+            'What other medications do I have today?',
+            'What is my blood pressure?'
+          ],
+        };
+      }
+    }
+
+    if (q.includes('medicine') || q.includes('medication') || q.includes('meds') || q.includes('pills') || q.includes('dose') || q.includes('prescription')) {
+      const todayLogs = HealthStorageService.getMedicationLogsForDate(todayStr);
+      const activeMeds = profile.medications.filter((m) => m.active !== false);
+
+      const taken = todayLogs.filter((l) => l.status === 'taken');
+      const pending = todayLogs.filter((l) => l.status === 'pending');
+
+      const morningMeds = activeMeds.filter((m) => m.timeOfDay === 'morning').map((m) => `${m.name} ${m.dosage}`).join(', ');
+      const spokenSummary = `You have ${activeMeds.length} active prescriptions scheduled. Today, ${taken.length} doses are confirmed taken, and ${pending.length} are pending. Morning routine includes ${morningMeds || 'none'}.`;
+
+      let written = `💊 **Today's Medication Schedule (${todayStr})**:\n`;
+      activeMeds.forEach((m) => {
+        const log = todayLogs.find((l) => l.medicationId === m.id);
+        const statusIcon = log?.status === 'taken' ? '✅ Taken' : log?.status === 'missed' ? '❌ Missed' : '⏳ Pending';
+        written += `• **${m.name}** (${m.dosage}) — ${m.timeOfDay.toUpperCase()} [${statusIcon}]\n  _${m.instructions}_\n`;
+      });
+
+      return {
+        answer: written,
+        spokenText: spokenSummary,
+        category: 'medication',
+        suggestedAction: { label: 'Open Medication Tracker', tab: 'timeline' },
+        medicationList: todayLogs,
+        followUpSuggestions: [
+          'I took all morning meds',
+          'What is my latest blood pressure?',
+          'Listen to what is there to do'
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 6. PHYSICAL ACTIVITIES & EXERCISE LOGGING
+    // =========================================================================
     if ((q.includes('log') || q.includes('record') || q.includes('walked') || q.includes('exercised')) && (q.includes('walk') || q.includes('hike') || q.includes('gardening') || q.includes('stretch') || q.includes('housework') || q.includes('exercise'))) {
       const minMatch = q.match(/(\d{1,3})\s*(?:min|mins|minutes)/);
       const duration = minMatch ? parseInt(minMatch[1], 10) : 30;
@@ -120,191 +491,24 @@ export class MedicalAIService {
       HealthStorageService.addActivityLog(newEntry);
 
       const msg = `Wonderful! I have logged ${duration} minutes of ${title.toLowerCase()} for today. Excellent for your heart health and longevity!`;
+      const written = `🏃 **Physical Activity Logged**:\n• **Activity**: ${title}\n• **Duration**: **${duration} minutes**\n• **Intensity**: ${newEntry.intensity.toUpperCase()}\n• **Status**: Added to your 30-day activity records!`;
 
       return {
-        answer: msg,
+        answer: written,
         spokenText: msg,
         category: 'activity',
         isActionLogged: true,
         loggedActionDescription: `Logged ${duration} min ${title}`,
         suggestedAction: { label: 'View Physical Activities', tab: 'activities' },
+        activityLog: newEntry,
         followUpSuggestions: [
           'How much activity did I do this week?',
           'What is my latest blood pressure?',
-          'What are my medications today?'
+          'Listen to what is there to do'
         ],
       };
     }
 
-    // 3. Direct Voice / Text Medication Taking Command
-    // Examples: "I took my morning pills", "Took Lisinopril", "I took all my meds"
-    if (q.includes('took') || q.includes('taken') || q.includes('swallowed') || q.includes('drank my meds')) {
-      const allTodayLogs = HealthStorageService.getMedicationLogsForDate(todayStr);
-
-      if (q.includes('morning') || q.includes('all') || q.includes('breakfast')) {
-        HealthStorageService.markTimeSlotStatus(todayStr, 'morning', 'taken');
-        const morningCount = allTodayLogs.filter((l) => l.timeOfDay === 'morning').length;
-        const msg = `Great job! I have confirmed all ${morningCount || 'your'} morning medications as taken for today.`;
-        return {
-          answer: msg,
-          spokenText: msg,
-          category: 'medication',
-          isActionLogged: true,
-          loggedActionDescription: 'Confirmed morning medications taken',
-          suggestedAction: { label: 'View Medication Schedule', tab: 'timeline' },
-          followUpSuggestions: [
-            'What medications are left today?',
-            'What is my latest blood pressure?',
-            'Check my adherence rate'
-          ],
-        };
-      }
-
-      if (q.includes('evening') || q.includes('dinner') || q.includes('night')) {
-        HealthStorageService.markTimeSlotStatus(todayStr, 'evening', 'taken');
-        const msg = `Confirmed! I have marked your evening medications as taken for today.`;
-        return {
-          answer: msg,
-          spokenText: msg,
-          category: 'medication',
-          isActionLogged: true,
-          loggedActionDescription: 'Confirmed evening medications taken',
-          suggestedAction: { label: 'View Medication Schedule', tab: 'timeline' },
-          followUpSuggestions: [
-            'What medications are left today?',
-            'What is my latest blood pressure?'
-          ],
-        };
-      }
-
-      // Check specific drug match
-      const matchingMed = allTodayLogs.find((l) => q.includes(l.medicationName.toLowerCase()));
-      if (matchingMed) {
-        HealthStorageService.updateMedicationLogStatus(todayStr, matchingMed.medicationId, 'taken');
-        const msg = `Confirmed! I marked ${matchingMed.medicationName} (${matchingMed.dosage}) as taken for today.`;
-        return {
-          answer: msg,
-          spokenText: msg,
-          category: 'medication',
-          isActionLogged: true,
-          loggedActionDescription: `Marked ${matchingMed.medicationName} taken`,
-          suggestedAction: { label: 'View Medication Schedule', tab: 'timeline' },
-          followUpSuggestions: [
-            'What other medications do I have today?',
-            'What is my blood pressure?'
-          ],
-        };
-      }
-    }
-
-    // 4. Food Scanner & Nutrition Inquiries
-    // Examples: "How does the food scanner work?", "Is salmon good for blood pressure?", "Open food scanner", "How much sodium?"
-    if (q.includes('food') || q.includes('scanner') || q.includes('camera') || q.includes('plate') || q.includes('sodium') || q.includes('carbs') || q.includes('nutrition') || q.includes('eat') || q.includes('dining')) {
-      const spoken = `Our AI Food Scanner lets you take a photo or scan any meal to instantly check sodium levels, carbohydrates, and blood pressure safety. It helps keep your daily sodium below 2000 milligrams.`;
-
-      const written = `🥗 **AI Food & Dining Out Scanner**:\n• **Capabilities**: Take or upload a meal photo, analyze restaurant menu items, and check real-time blood pressure & glycemic safety.\n• **Heart-Healthy Sodium Limit**: Under **2,000 mg/day**\n• **Tip**: High-potassium foods (spinach, avocado, salmon, sweet potatoes) help buffer sodium.\n• **Live Scanner**: Tap below to open the camera scanner anytime!`;
-
-      return {
-        answer: written,
-        spokenText: spoken,
-        category: 'food',
-        suggestedAction: { label: 'Open AI Food Scanner', tab: 'scanner' },
-        followUpSuggestions: [
-          'Show healthy low-sodium recipes',
-          'What is my latest blood pressure?',
-          'What medications do I have today?'
-        ],
-      };
-    }
-
-    // 5. Blood Pressure & Pulse Inquiries
-    if (q.includes('blood pressure') || q.includes('bp') || q.includes('pulse') || q.includes('heart rate') || q.includes('vitals')) {
-      const bpRecords = sortedDesc.filter((r) => r.bloodPressure?.measured && r.bloodPressure.systolic);
-      
-      if (bpRecords.length === 0) {
-        const msg = `You don't have any blood pressure readings recorded yet. Your personal systolic target is ${profile.targetSystolicMin} to ${profile.targetSystolicMax} mmHg. Would you like to log your reading now?`;
-        return {
-          answer: msg,
-          spokenText: msg,
-          category: 'blood_pressure',
-          suggestedAction: { label: 'Open BP & Pulse Register', tab: 'timeline' },
-          followUpSuggestions: ['Log BP 120/80 pulse 72', 'What are my healthy targets?'],
-        };
-      }
-
-      const latest = bpRecords[0];
-      const sys = latest.bloodPressure.systolic || 120;
-      const dia = latest.bloodPressure.diastolic || 80;
-      const pulseVal = latest.bloodPressure.pulse || 72;
-      const readingDate = new Date(latest.date + 'T00:00:00').toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-      });
-
-      const avgSys = Math.round(bpRecords.reduce((sum, r) => sum + (r.bloodPressure.systolic || 0), 0) / bpRecords.length);
-      const avgDia = Math.round(bpRecords.reduce((sum, r) => sum + (r.bloodPressure.diastolic || 0), 0) / bpRecords.length);
-      const avgPulse = Math.round(bpRecords.reduce((sum, r) => sum + (r.bloodPressure.pulse || 72), 0) / bpRecords.length);
-
-      const inTarget = sys >= profile.targetSystolicMin && sys <= profile.targetSystolicMax;
-      const targetFeedback = inTarget
-        ? `This reading is in your healthy target zone (${profile.targetSystolicMin}–${profile.targetSystolicMax} mmHg).`
-        : `Your personal target is ${profile.targetSystolicMin}–${profile.targetSystolicMax} mmHg.`;
-
-      const spoken = `Your most recent blood pressure was recorded on ${readingDate} at ${sys} over ${dia} mmHg, with a pulse of ${pulseVal} beats per minute. ${targetFeedback} Your 30-day average is ${avgSys} over ${avgDia} mmHg.`;
-
-      const written = `📊 **Latest Blood Pressure & Pulse (${readingDate})**:\n• Reading: **${sys}/${dia} mmHg** (Pulse: **${pulseVal} BPM**)\n• Target Goal: ${profile.targetSystolicMin}–${profile.targetSystolicMax} / ${profile.targetDiastolicMin}–${profile.targetDiastolicMax} mmHg\n• 30-Day Average: **${avgSys}/${avgDia} mmHg** (Avg Pulse: **${avgPulse} BPM**)\n• Status: ${inTarget ? '✅ Within Target Range' : '⚠️ Outside Ideal Target'}`;
-
-      return {
-        answer: written,
-        spokenText: spoken,
-        category: 'blood_pressure',
-        suggestedAction: { label: 'Open BP & Pulse Register', tab: 'timeline' },
-        followUpSuggestions: [
-          'What medications do I have today?',
-          'Have my readings improved?',
-          'What did my doctor say?'
-        ],
-      };
-    }
-
-    // 6. Medication Schedule & Adherence Inquiries
-    if (q.includes('medicine') || q.includes('medication') || q.includes('meds') || q.includes('pills') || q.includes('dose') || q.includes('prescription')) {
-      const todayLogs = HealthStorageService.getMedicationLogsForDate(todayStr);
-      const activeMeds = profile.medications.filter((m) => m.active !== false);
-
-      const taken = todayLogs.filter((l) => l.status === 'taken');
-      const pending = todayLogs.filter((l) => l.status === 'pending');
-      const missed = todayLogs.filter((l) => l.status === 'missed');
-
-      const morningMeds = activeMeds.filter((m) => m.timeOfDay === 'morning').map((m) => `${m.name} ${m.dosage}`).join(', ');
-      const afternoonMeds = activeMeds.filter((m) => m.timeOfDay === 'afternoon').map((m) => `${m.name} ${m.dosage}`).join(', ');
-      const eveningMeds = activeMeds.filter((m) => m.timeOfDay === 'evening').map((m) => `${m.name} ${m.dosage}`).join(', ');
-      const bedtimeMeds = activeMeds.filter((m) => m.timeOfDay === 'bedtime').map((m) => `${m.name} ${m.dosage}`).join(', ');
-
-      const spokenSummary = `You have ${activeMeds.length} active prescriptions scheduled. Today, ${taken.length} doses are confirmed taken, and ${pending.length} are pending. Morning routine includes ${morningMeds || 'none'}.`;
-
-      let written = `💊 **Today's Medication Schedule (${todayStr})**:\n`;
-      written += `• **Morning Routine**: ${morningMeds || 'None'}\n`;
-      if (afternoonMeds) written += `• **Afternoon / Lunch**: ${afternoonMeds}\n`;
-      if (eveningMeds) written += `• **Evening / Dinner**: ${eveningMeds}\n`;
-      if (bedtimeMeds) written += `• **Bedtime**: ${bedtimeMeds}\n`;
-      written += `\n**Status Today**: ✅ ${taken.length} Taken | ⏳ ${pending.length} Pending | ❌ ${missed.length} Missed`;
-
-      return {
-        answer: written,
-        spokenText: spokenSummary,
-        category: 'medication',
-        suggestedAction: { label: 'Open Medication Tracker', tab: 'timeline' },
-        followUpSuggestions: [
-          'I took all morning meds',
-          'What is my latest blood pressure?',
-          'What did my doctor say?'
-        ],
-      };
-    }
-
-    // 7. Physical Activities Summary
     if (q.includes('exercise') || q.includes('activity') || q.includes('activities') || q.includes('walk') || q.includes('hike') || q.includes('active') || q.includes('minutes')) {
       const allActs = HealthStorageService.getAllActivityLogs();
       const allEntries: ActivityLogEntry[] = Object.values(allActs).flat();
@@ -312,8 +516,7 @@ export class MedicalAIService {
       const totalSessions = allEntries.length;
 
       const spoken = `Over the past 30 days, you logged ${totalMinutes} active minutes across ${totalSessions} sessions, averaging ${Math.round(totalMinutes / 30)} minutes per day.`;
-
-      const written = `🏃 **Physical Activity & Vitality Summary**:\n• Total Active Minutes: **${totalMinutes} mins** (${totalSessions} sessions logged)\n• Daily Goal Target: **30 minutes/day** (${totalMinutes >= 600 ? '✅ Target Met!' : 'Keep going!'})\n• Top Activities: Neighborhood walks, trail hikes, and home activities.`;
+      const written = `🏃 **Physical Activity & Vitality Summary**:\n• Total Active Minutes: **${totalMinutes} mins** (${totalSessions} sessions logged)\n• Daily Goal Target: **30 minutes/day** (${totalMinutes >= 600 ? '✅ Target Met!' : 'Keep going!'})\n• Top Activities: Neighborhood walks, trail hikes, and home mobility.`;
 
       return {
         answer: written,
@@ -328,79 +531,9 @@ export class MedicalAIService {
       };
     }
 
-    // 8. Doctor Visits & Clinical Instructions
-    if (q.includes('doctor') || q.includes('physician') || q.includes('appointment') || q.includes('cardiologist') || q.includes('dr.') || q.includes('dr ')) {
-      const spoken = `Your last cardiology consultation with Doctor Sarah Jenkins was on September 14. Doctor Jenkins noted stable blood pressure control, adjusted Lisinopril to 10 milligrams, and recommended keeping sodium under 2000 milligrams daily. Your next checkup is scheduled in December.`;
-
-      const written = `🩺 **Doctor & Clinical Care Summary**:\n• **Attending Cardiologist**: Dr. Sarah Jenkins, MD (UCSF Cardiology)\n• **Latest Visit**: Sept 14, 2026 — Routine Hypertension Review\n• **Clinical Notes**: Blood pressure well controlled at 124/80 mmHg. Continued Lisinopril 10mg daily with breakfast.\n• **Doctor's Guidance**: Maintain daily 20-minute walks, keep sodium below 2,000 mg/day, and monitor for any morning dizziness.\n• **Next Follow-Up**: Scheduled December 2026.`;
-
-      return {
-        answer: written,
-        spokenText: spoken,
-        category: 'doctor',
-        suggestedAction: { label: 'View Doctor & Clinical Care', tab: 'timeline' },
-        followUpSuggestions: [
-          'What is my latest blood pressure?',
-          'What medications do I have today?',
-          'Add a doctor reminder'
-        ],
-      };
-    }
-
-    // 9. Clinical Risk Alerts
-    if (q.includes('alert') || q.includes('alerts') || q.includes('risk') || q.includes('warning') || q.includes('concern')) {
-      const alerts: SmartAlert[] = HealthAnalyticsService.evaluateSmartAlerts(history, profile);
-
-      if (alerts.length === 0) {
-        const msg = `You have no active health risk alerts. All your recent check-in readings, blood pressure, and medication adherence are in a stable, healthy state.`;
-        return {
-          answer: `🛡️ **Smart Risk Alerts Status**:\n• **Active Alerts**: 0 pending\n• **Summary**: Key health indicators (blood pressure, medication compliance, and daily energy) are in a safe and steady range.`,
-          spokenText: msg,
-          category: 'alerts',
-          suggestedAction: { label: 'View Smart Risk Alerts', tab: 'alerts' },
-          followUpSuggestions: [
-            'What is my latest blood pressure?',
-            'What medications do I have today?'
-          ],
-        };
-      }
-
-      const topAlert = alerts[0];
-      const spoken = `You have ${alerts.length} active health notice: ${topAlert.title}. ${topAlert.message}`;
-      const written = `⚠️ **Smart Health Risk Alerts (${alerts.length} Active)**:\n` + alerts.map((a) => `• **${a.title}** (${a.severity.toUpperCase()}): ${a.message}`).join('\n');
-
-      return {
-        answer: written,
-        spokenText: spoken,
-        category: 'alerts',
-        suggestedAction: { label: 'View Smart Risk Alerts', tab: 'alerts' },
-        followUpSuggestions: [
-          'What is my latest blood pressure?',
-          'What did my doctor say?'
-        ],
-      };
-    }
-
-    // 10. Personal Targets & Normal Guidelines
-    if (q.includes('target') || q.includes('normal range') || q.includes('healthy range') || q.includes('goal') || q.includes('should my')) {
-      const spoken = `Your personalized healthy target for blood pressure is ${profile.targetSystolicMin} to ${profile.targetSystolicMax} mmHg systolic, and ${profile.targetDiastolicMin} to ${profile.targetDiastolicMax} mmHg diastolic. A normal resting pulse is 60 to 100 beats per minute.`;
-
-      const written = `🎯 **Personal Health & Vitals Targets**:\n• **Target Systolic**: ${profile.targetSystolicMin} – ${profile.targetSystolicMax} mmHg\n• **Target Diastolic**: ${profile.targetDiastolicMin} – ${profile.targetDiastolicMax} mmHg\n• **Normal Resting Pulse**: 60 – 100 BPM\n• **Daily Physical Activity Target**: 30 minutes/day\n• **Sodium Limit**: Under 2,000 mg/day (Heart-Healthy guidelines)`;
-
-      return {
-        answer: written,
-        spokenText: spoken,
-        category: 'targets',
-        suggestedAction: { label: 'Open BP & Pulse Register', tab: 'timeline' },
-        followUpSuggestions: [
-          'What is my latest blood pressure?',
-          'Log BP 120/80 pulse 72',
-          'What medications do I have today?'
-        ],
-      };
-    }
-
-    // 11. Reminders & Tasks AI Voice/Text Actions (Cross-off, Add, List, Reschedule)
+    // =========================================================================
+    // 7. REMINDERS & TASKS (ADD, CROSS OFF, VOICEMAIL BRIEFING)
+    // =========================================================================
     const isReminderQuery = 
       q.includes('reminder') || 
       q.includes('reminders') || 
@@ -412,23 +545,23 @@ export class MedicalAIService {
       q.includes('check off') ||
       q.includes('mark done') ||
       q.includes('mark complete') ||
-      q.includes('remind me');
+      q.includes('remind me') ||
+      q.includes('listen') ||
+      q.includes('voicemail') ||
+      q.includes('what is there to do');
 
     if (isReminderQuery) {
       const allReminders = HealthStorageService.getAllReminders();
 
-      // A. Cross-Off / Complete Task Command
+      // Cross-Off Command
       if (
         q.includes('cross off') || 
         q.includes('check off') || 
         q.includes('mark done') || 
         q.includes('mark complete') || 
         q.includes('completed task') ||
-        q.includes('finished task') ||
-        q.includes('tick off') ||
-        q.includes('done with')
+        q.includes('finished task')
       ) {
-        // Find matching reminder
         const candidate = allReminders.find((r) => {
           if (r.completed) return false;
           const words = r.title.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
@@ -452,28 +585,15 @@ export class MedicalAIService {
             suggestedAction: { label: 'Open Reminders & Tasks', tab: 'reminders' },
             taskItems: [targetItem],
             followUpSuggestions: [
-              'What other tasks do I have today?',
+              'Listen to what is there to do',
               'What is my latest blood pressure?',
               'What medications do I have today?'
-            ],
-          };
-        } else {
-          const spoken = `You don't have any pending tasks to cross off. All your scheduled reminders are already completed!`;
-          return {
-            answer: `🎉 **All Tasks Completed!**\nYou have 0 pending items in your Reminders & Tasks list.`,
-            spokenText: spoken,
-            category: 'reminders',
-            suggestedAction: { label: 'Open Reminders & Tasks', tab: 'reminders' },
-            followUpSuggestions: [
-              'Add a new reminder',
-              'What is my latest blood pressure?',
-              'Show healthy recipes'
             ],
           };
         }
       }
 
-      // B. Add New Reminder / Task Command
+      // Add Reminder Command
       if (
         q.startsWith('remind me') || 
         q.startsWith('add reminder') || 
@@ -523,30 +643,18 @@ export class MedicalAIService {
           taskItems: [newItem],
           followUpSuggestions: [
             `Cross off ${cleanTitle}`,
-            'What are my other tasks?',
+            'Listen to what is there to do',
             'What is my latest blood pressure?'
           ],
         };
       }
 
-      // C. Voicemail / "Listen to What is There to Do" Audio Briefing & Ranked Task Overview
-      const isVoicemailOrListen = 
-        q.includes('listen') || 
-        q.includes('voicemail') || 
-        q.includes('read to me') || 
-        q.includes('play my tasks') || 
-        q.includes('speak my tasks') || 
-        q.includes('read tasks') ||
-        q.includes('play reminder') ||
-        q.includes('read reminder');
-
+      // Voicemail / Audio Briefing & Listing
       const onlyUrgent = q.includes('urgent') || q.includes('critical') || q.includes('doctor') || q.includes('medical');
       const onlyRoutine = (q.includes('routine') || q.includes('chore') || q.includes('daily') || q.includes('less urgent')) && !onlyUrgent;
 
       const activePending = allReminders.filter((r) => !r.completed);
-      const crossedOff = allReminders.filter((r) => r.completed);
 
-      // Rank pending tasks: Urgent first, then routine
       let rankedTasks = [...activePending].sort((a, b) => {
         if (a.priority === 'urgent' && b.priority !== 'urgent') return -1;
         if (a.priority !== 'urgent' && b.priority === 'urgent') return 1;
@@ -559,81 +667,156 @@ export class MedicalAIService {
         rankedTasks = rankedTasks.filter((r) => r.priority === 'less_urgent');
       }
 
-      if (isVoicemailOrListen || q.includes('what') || q.includes('show') || q.includes('list')) {
-        if (rankedTasks.length === 0) {
-          const emptySpoken = onlyUrgent 
-            ? 'You have no urgent medical tasks in your queue. All caught up!'
-            : 'You have no pending tasks in your queue. All items have been crossed off!';
-          return {
-            answer: `🎉 **Task Voicemail: All Clear!**\n• No pending ${onlyUrgent ? 'urgent' : ''} tasks found.\n• Total items crossed off: **${crossedOff.length}**`,
-            spokenText: emptySpoken,
-            category: 'reminders',
-            suggestedAction: { label: 'Open Reminders & Tasks', tab: 'reminders' },
-            taskItems: crossedOff.slice(0, 5),
-            followUpSuggestions: [
-              'Add a new reminder',
-              'What is my latest blood pressure?',
-              'What medications do I have today?'
-            ],
-          };
-        }
+      let voicemailSpoken = `Welcome to your task voicemail speaker. You have ${rankedTasks.length} ${onlyUrgent ? 'urgent ' : onlyRoutine ? 'routine ' : ''}tasks in your queue, ranked by urgency. `;
+      rankedTasks.forEach((t, index) => {
+        const num = index + 1;
+        const urgencyLabel = t.priority === 'urgent' ? 'Urgent priority.' : 'Routine.';
+        const duePart = t.dueTime ? ` Due at ${t.dueTime}.` : '';
+        const notesPart = t.notes ? ` Notes: ${t.notes}.` : '';
+        voicemailSpoken += `Message ${num}: ${urgencyLabel} ${t.title}.${duePart}${notesPart} `;
+      });
+      voicemailSpoken += 'End of task voicemail. You can cross off any task or tap its box.';
 
-        // Build true voicemail audio script
-        let voicemailSpoken = `Welcome to your task voicemail speaker. You have ${rankedTasks.length} ${onlyUrgent ? 'urgent ' : onlyRoutine ? 'routine ' : ''}tasks in your queue, ranked by urgency. `;
-        rankedTasks.forEach((t, index) => {
-          const num = index + 1;
-          const urgencyLabel = t.priority === 'urgent' ? 'Urgent priority.' : 'Routine.';
-          const duePart = t.dueTime ? ` Due at ${t.dueTime}.` : '';
-          const notesPart = t.notes ? ` Notes: ${t.notes}.` : '';
-          voicemailSpoken += `Message ${num}: ${urgencyLabel} ${t.title}.${duePart}${notesPart} `;
-        });
-        voicemailSpoken += 'End of task voicemail. You can say cross off any task or tap its box to complete it.';
+      let written = `📼 **Task Voicemail Speaker Briefing** (${rankedTasks.length} Ranked Items):\n\n`;
+      rankedTasks.forEach((t, index) => {
+        const num = index + 1;
+        const badge = t.priority === 'urgent' ? '🚨 [URGENT]' : '📋 [ROUTINE]';
+        written += `**Message ${num}** ${badge}: **${t.title}**\n`;
+        if (t.dueTime || t.dueDate) written += `• ⏰ Schedule: ${t.dueTime || ''} ${t.dueDate ? `(${t.dueDate})` : ''}\n`;
+        if (t.notes) written += `• 📝 Notes: ${t.notes}\n`;
+        written += `\n`;
+      });
 
-        let written = `📼 **Task Voicemail Speaker Briefing** (${rankedTasks.length} Ranked Items):\n\n`;
-        rankedTasks.forEach((t, index) => {
-          const num = index + 1;
-          const badge = t.priority === 'urgent' ? '🚨 [URGENT]' : '📋 [ROUTINE]';
-          written += `**Message ${num}** ${badge}: **${t.title}**\n`;
-          if (t.dueTime || t.dueDate) written += `• ⏰ Schedule: ${t.dueTime || ''} ${t.dueDate ? `(${t.dueDate})` : ''}\n`;
-          if (t.notes) written += `• 📝 Notes: ${t.notes}\n`;
-          written += `\n`;
-        });
+      return {
+        answer: written,
+        spokenText: voicemailSpoken,
+        category: 'reminders',
+        suggestedAction: { label: 'Open Reminders & Tasks Studio', tab: 'reminders' },
+        taskItems: rankedTasks,
+        followUpSuggestions: [
+          rankedTasks.length > 0 ? `Cross off ${rankedTasks[0].title.split(' ')[0]}` : 'Add a new reminder',
+          onlyUrgent ? 'Play routine tasks' : 'Play most urgent tasks',
+          'What is my latest blood pressure?'
+        ],
+      };
+    }
 
-        if (crossedOff.length > 0) {
-          written += `✅ **Crossed Off / Completed Items (${crossedOff.length})**:\n`;
-          crossedOff.slice(0, 3).forEach((t) => {
-            written += `• [✓] ~~${t.title}~~\n`;
-          });
-        }
+    // =========================================================================
+    // 8. DOCTOR VISITS & CLINICAL CARE INQUIRIES
+    // =========================================================================
+    if (q.includes('doctor') || q.includes('physician') || q.includes('appointment') || q.includes('cardiologist') || q.includes('dr.') || q.includes('dr ')) {
+      const spoken = `Your last cardiology consultation with Doctor Sarah Jenkins was on September 14. Doctor Jenkins noted stable blood pressure control, adjusted Lisinopril to 10 milligrams, and recommended keeping sodium under 2000 milligrams daily. Your next checkup is scheduled in December.`;
+      const written = `🩺 **Doctor & Clinical Care Summary**:\n• **Attending Cardiologist**: Dr. Sarah Jenkins, MD (UCSF Cardiology)\n• **Latest Visit**: Sept 14, 2026 — Routine Hypertension Review\n• **Clinical Notes**: Blood pressure well controlled at 124/80 mmHg. Continued Lisinopril 10mg daily with breakfast.\n• **Doctor's Guidance**: Maintain daily 20-minute walks, keep sodium below 2,000 mg/day, and monitor for any morning dizziness.\n• **Next Follow-Up**: Scheduled December 2026.`;
 
+      return {
+        answer: written,
+        spokenText: spoken,
+        category: 'doctor',
+        suggestedAction: { label: 'View Doctor & Clinical Care', tab: 'timeline' },
+        followUpSuggestions: [
+          'What is my latest blood pressure?',
+          'What medications do I have today?',
+          'Add a doctor reminder'
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 9. SMART RISK ALERTS
+    // =========================================================================
+    if (q.includes('alert') || q.includes('alerts') || q.includes('risk') || q.includes('warning') || q.includes('concern')) {
+      const alerts: SmartAlert[] = HealthAnalyticsService.evaluateSmartAlerts(history, profile);
+
+      if (alerts.length === 0) {
+        const msg = `You have no active health risk alerts. All your recent check-in readings, blood pressure, and medication adherence are in a stable, healthy state.`;
         return {
-          answer: written,
-          spokenText: voicemailSpoken,
-          category: 'reminders',
-          suggestedAction: { label: 'Open Reminders & Tasks Studio', tab: 'reminders' },
-          taskItems: rankedTasks,
+          answer: `🛡️ **Smart Risk Alerts Status**:\n• **Active Alerts**: 0 pending\n• **Summary**: Key health indicators (blood pressure, medication compliance, and daily energy) are in a safe and steady range.`,
+          spokenText: msg,
+          category: 'alerts',
+          suggestedAction: { label: 'View Smart Risk Alerts', tab: 'alerts' },
           followUpSuggestions: [
-            `Cross off ${rankedTasks[0].title.split(' ')[0]}`,
-            onlyUrgent ? 'Play routine tasks' : 'Play most urgent tasks',
-            'What is my latest blood pressure?'
+            'What is my latest blood pressure?',
+            'What medications do I have today?'
           ],
         };
       }
+
+      const topAlert = alerts[0];
+      const spoken = `You have ${alerts.length} active health notice: ${topAlert.title}. ${topAlert.message}`;
+      const written = `⚠️ **Smart Health Risk Alerts (${alerts.length} Active)**:\n` + alerts.map((a) => `• **${a.title}** (${a.severity.toUpperCase()}): ${a.message}`).join('\n');
+
+      return {
+        answer: written,
+        spokenText: spoken,
+        category: 'alerts',
+        suggestedAction: { label: 'View Smart Risk Alerts', tab: 'alerts' },
+        followUpSuggestions: [
+          'What is my latest blood pressure?',
+          'What did my doctor say?'
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 10. BAY AREA HAPPENINGS & SENIOR ACTIVITIES
+    // =========================================================================
+    if (q.includes('event') || q.includes('events') || q.includes('happening') || q.includes('bay area') || q.includes('weekend') || q.includes('fun')) {
+      const syncEvents = HealthStorageService.syncWeeklyBayAreaEvents();
+      const events = syncEvents.events.slice(0, 3);
+
+      const spoken = `Here are fun senior-friendly happenings in the Bay Area this week, including the Golden Gate Park gentle morning stroll and the farmers market!`;
+      let written = `🌉 **Bay Area Fun & Senior Happenings (${syncEvents.events.length} Active Events)**:\n\n`;
+      events.forEach((ev) => {
+        written += `**• ${ev.title}** (${ev.category.toUpperCase()})\n  📍 ${ev.locationName} | ⏰ ${ev.dateRange || 'This Weekend'}\n  _${ev.description}_\n\n`;
+      });
+
+      return {
+        answer: written,
+        spokenText: spoken,
+        category: 'happenings',
+        suggestedAction: { label: 'Explore Bay Area Happenings', tab: 'happenings' },
+        eventList: events,
+        followUpSuggestions: [
+          'Log a 30 minute walk',
+          'Show low-sodium recipes',
+          'Listen to what is there to do'
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 11. GENERAL HEALTHY TARGETS & APP ASSISTANT
+    // =========================================================================
+    if (q.includes('target') || q.includes('normal range') || q.includes('healthy range') || q.includes('goal') || q.includes('should my')) {
+      const spoken = `Your personalized healthy target for blood pressure is ${profile.targetSystolicMin} to ${profile.targetSystolicMax} mmHg systolic, and ${profile.targetDiastolicMin} to ${profile.targetDiastolicMax} mmHg diastolic. A normal resting pulse is 60 to 100 beats per minute.`;
+      const written = `🎯 **Personal Health & Vitals Targets**:\n• **Target Systolic**: ${profile.targetSystolicMin} – ${profile.targetSystolicMax} mmHg\n• **Target Diastolic**: ${profile.targetDiastolicMin} – ${profile.targetDiastolicMax} mmHg\n• **Normal Resting Pulse**: 60 – 100 BPM\n• **Daily Physical Activity Target**: 30 minutes/day\n• **Sodium Limit**: Under 2,000 mg/day (Heart-Healthy guidelines)`;
+
+      return {
+        answer: written,
+        spokenText: spoken,
+        category: 'targets',
+        suggestedAction: { label: 'Open BP & Pulse Register', tab: 'timeline' },
+        followUpSuggestions: [
+          'What is my latest blood pressure?',
+          'Log BP 120/80 pulse 72',
+          'What medications do I have today?'
+        ],
+      };
     }
 
     // General fallback linked assistant response
     const generalSpoken = `I have linked access to all your health records, food scanner, blood pressure vitals, medications, and physical activity logs. How can I assist you today?`;
-    const generalWritten = `🤖 **MyHealthSafe AI Assistant**:\nI have live linked access across your entire health profile:\n• 💓 **Blood Pressure & Pulse**: Track vitals, log readings, and view trends.\n• 💊 **Medications**: Check prescriptions, timings, and confirm doses.\n• 🍎 **Food Scanner**: Analyze meals, sodium content, and dining out safety.\n• 🏃 **Physical Activity**: Log walks, hikes, and daily active minutes.\n• 🩺 **Doctor Care**: Review clinical notes and prepare questions.\n\nAsk me anything by voice or typing!`;
+    const generalWritten = `🤖 **MyHealthSafe Synchronized AI Assistant**:\nI am fully connected across your entire health suite:\n• 💓 **Blood Pressure & Vitals**: Track readings, log BP, and view trends.\n• 🍎 **Food Plate Scanner**: Analyze meal photos, sodium, carbs, and calories.\n• 🍲 **Healthy Recipes**: Explore 7-day low-sodium meal plans & add to grocery lists.\n• 💊 **Medications**: Confirm taken doses, view schedules, and check refills.\n• 📋 **Reminders & Voicemail**: Add tasks, cross off boxes [✓], and listen to audio briefings.\n• 🏃 **Activities & Walks**: Log workouts, garden sessions, and track active minutes.\n• 🩺 **Doctor Visits**: Review care notes and appointment reminders.\n\nAsk me anything by voice, type below, or take a meal picture!`;
 
     return {
       answer: generalWritten,
       spokenText: generalSpoken,
       category: 'general',
       followUpSuggestions: [
-        'What is my latest blood pressure?',
-        'What medications do I have today?',
-        'Open AI Food Scanner',
-        'How much activity did I do this week?'
+        'Listen to what is there to do',
+        'Log BP 120/80 pulse 72',
+        'Scan my meal for sodium and calories',
+        'What medications do I have today?'
       ],
     };
   }
