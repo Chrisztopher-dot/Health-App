@@ -22,7 +22,9 @@ import {
   Sun,
   Moon,
   Monitor,
-  Palette
+  Palette,
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -31,6 +33,8 @@ interface SettingsModalProps {
   profile: UserProfile;
   onSaveProfile: (profile: UserProfile) => void;
   onResetData: (scenario: 'balanced' | 'rising_bp' | 'missed_meds' | 'dizziness_fatigue') => void;
+  onLogout?: () => void;
+  username?: string;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -39,6 +43,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   profile,
   onSaveProfile,
   onResetData,
+  onLogout,
+  username,
 }) => {
   const [formData, setFormData] = useState<UserProfile>(profile);
   const [newMedName, setNewMedName] = useState<string>('');
@@ -134,6 +140,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="w-full text-base p-3 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50"
                 />
               </div>
+            </div>
+
+            {/* Account & Password Hash Security Badge */}
+            <div className="p-3 bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                    <span>Account: {username ? `@${username}` : formData.name}</span>
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                      Salted & Hashed (PBKDF2)
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-medium">
+                    Protected with 100,000 cryptographic rounds and random salt
+                  </div>
+                </div>
+              </div>
+
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onLogout();
+                  }}
+                  className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-slate-300 hover:border-rose-300 text-rose-700 font-extrabold text-xs rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Log Out</span>
+                </button>
+              )}
             </div>
           </div>
 

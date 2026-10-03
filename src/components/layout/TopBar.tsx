@@ -18,7 +18,8 @@ import {
   Camera, 
   Compass,
   Bot,
-  Palette
+  Palette,
+  LogOut
 } from 'lucide-react';
 import { ThemeService } from '../../services/themeService';
 
@@ -31,6 +32,8 @@ interface TopBarProps {
   onOpenMobileMenu: () => void;
   onSelectScenario: (scenario: 'balanced' | 'rising_bp' | 'missed_meds' | 'dizziness_fatigue') => void;
   alertCount: number;
+  onLogout?: () => void;
+  username?: string;
 }
 
 const TAB_TITLES: Record<AppTab, { title: string; subtitle: string; icon: React.ElementType }> = {
@@ -100,6 +103,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenMobileMenu,
   onSelectScenario,
   alertCount,
+  onLogout,
+  username,
 }) => {
   const currentTabInfo = TAB_TITLES[activeTab] || TAB_TITLES.checkin;
   const CurrentIcon = currentTabInfo.icon;
@@ -314,6 +319,17 @@ export const TopBar: React.FC<TopBarProps> = ({
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full ring-2 ring-white animate-pulse" />
               )}
             </button>
+
+            {/* User Logout Button */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-300 transition-colors shadow-xs"
+                title={`Logged in as ${username ? `@${username}` : profile.name}. Click to log out.`}
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
 
           </div>
 

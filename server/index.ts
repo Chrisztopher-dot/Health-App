@@ -198,12 +198,40 @@ app.post('/api/restore', (req: Request, res: Response): void => {
   }
 });
 
+// 10. User Account Registration & Salting / Hashing Persistence
+app.post('/api/auth/register', (req: Request, res: Response): void => {
+  try {
+    const user = req.body;
+    if (!user || !user.username || !user.salt || !user.passwordHash) {
+      res.status(400).json({ error: 'Invalid user registration payload.' });
+      return;
+    }
+    HealthDatabaseService.saveUser(user);
+    res.json({ status: 'ok', message: 'User registered in SQLite.' });
+  } catch (error: any) {
+    console.error('Auth Register Error:', error?.message || error);
+    res.status(500).json({ error: 'Failed to register user.' });
+  }
+});
+
+// 11. Retrieve Registered Users (Sanitized without password hashes)
+app.get('/api/auth/users', (_req: Request, res: Response): void => {
+  try {
+    const users = HealthDatabaseService.getAllUsers();
+    res.json(users);
+  } catch (error: any) {
+    console.error('Auth Get Users Error:', error?.message || error);
+    res.status(500).json({ error: 'Failed to list users.' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`========================================`);
   console.log(`🏥 Daily Health Check-In Backend Server`);
   console.log(`🚀 Running on http://localhost:${PORT}`);
   console.log(`✨ Gemini Multimodal AI: ${GeminiBackendService.isConfigured() ? '✅ Connected' : '⚠️ Offline/Fallback Mode'}`);
   console.log(`🗄️ SQLite Database: ✅ Active (WAL Mode)`);
+  console.log(`🛡️ Auth & Password Protection: ✅ PBKDF2 Salt & Hash Active`);
   console.log(`🌤️ Weather & Air Quality: ✅ Open-Meteo Connected`);
   console.log(`========================================`);
 });

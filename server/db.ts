@@ -71,9 +71,73 @@ db.exec(`
     file_size_bytes INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    age INTEGER DEFAULT 75,
+    salt TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    iterations INTEGER DEFAULT 100000,
+    profile_json TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_login_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 export class HealthDatabaseService {
+  /**
+   * Register or update user in SQLite database
+   */
+  public static saveUser(user: {
+    id: string;
+    username: string;
+    displayName: string;
+    age?: number;
+    salt: string;
+    passwordHash: string;
+    iterations?: number;
+    profile?: any;
+    createdAt?: string;
+    lastLoginAt?: string;
+  }) {
+    const stmt = db.prepare(`
+      INSERT INTO users (id, username, display_name, age, salt, password_hash, iterations, profile_json, created_at, last_login_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(username) DO UPDATE SET
+        display_name = excluded.display_name,
+        age = excluded.age,
+        salt = excluded.salt,
+        password_hash = excluded.password_hash,
+        iterations = excluded.iterations,
+        profile_json = excluded.profile_json,
+        last_login_at = excluded.last_login_at
+    `);
+    return stmt.run(
+      user.id,
+      user.username.toLowerCase(),
+      user.displayName,
+      user.age || 75,
+      user.salt,
+      user.passwordHash,
+      user.iterations || 100000,
+      JSON.stringify(user.profile || {}),
+      user.createdAt || new Date().toISOString(),
+      user.lastLoginAt || new Date().toISOString()
+    );
+  }
+
+  public static getUserByUsername(username: string) {
+    const stmt = db.prepare(`SELECT * FROM users WHERE username = ?`);
+    return stmt.get(username.toLowerCase());
+  }
+
+  public static getAllUsers() {
+    const stmt = db.prepare(`SELECT id, username, display_name, age, created_at, last_login_at FROM users ORDER BY created_at DESC`);
+    return stmt.all();
+  }
+
   /**
    * Sync complete user state (called periodically or on change from client)
    */

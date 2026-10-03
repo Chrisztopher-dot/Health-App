@@ -24,9 +24,13 @@ import { HealthyRecipes } from './components/recipes/HealthyRecipes';
 import { AIFoodScanner } from './components/foodscanner/AIFoodScanner';
 import { VoiceOrTextAssistant } from './components/assistant/VoiceOrTextAssistant';
 import { SettingsModal } from './components/settings/SettingsModal';
+import { AuthScreen } from './components/auth/AuthScreen';
+import { AuthService } from './services/authService';
+import { AuthSession } from './types/auth';
 
 export const App: React.FC = () => {
-  const [profile, setProfile] = useState<UserProfile>(() => HealthStorageService.getProfile());
+  const [authSession, setAuthSession] = useState<AuthSession | null>(() => AuthService.getCurrentSession());
+  const [profile, setProfile] = useState<UserProfile>(() => authSession?.profile || HealthStorageService.getProfile());
   const [history, setHistory] = useState<CheckInRecord[]>(() => HealthStorageService.getCheckIns());
   const [todayRecord, setTodayRecord] = useState<CheckInRecord | null>(() => HealthStorageService.getTodayCheckIn());
   const [activeTab, setActiveTab] = useState<AppTab>('conversational');
@@ -82,6 +86,12 @@ export const App: React.FC = () => {
   const handleUpdateProfile = (updated: UserProfile) => {
     setProfile(updated);
     HealthStorageService.saveProfile(updated);
+    AuthService.updateUserProfile(updated);
+  };
+
+  const handleLogout = () => {
+    AuthService.logout();
+    setAuthSession(null);
   };
 
   const handleCompleteCheckIn = (newRecord: CheckInRecord) => {
@@ -132,6 +142,18 @@ export const App: React.FC = () => {
   const avatarState = HealthAnalyticsService.evaluateWellbeingAvatarState(history, profile);
   const activeTheme = ThemeService.getThemeForCategory(avatarState.category, isDarkMode);
 
+  // If user is not authenticated, display the Secure Login & Registration Screen
+  if (!authSession) {
+    return (
+      <AuthScreen
+        onAuthenticated={(session) => {
+          setAuthSession(session);
+          setProfile(session.profile);
+        }}
+      />
+    );
+  }
+
   return (
     <div className={`min-h-screen min-h-screen-dynamic bg-gradient-to-br ${activeTheme.bgGradient} text-slate-900 flex relative transition-colors duration-500 ${textScaleClasses}`}>
       {/* Adaptive Ambient Atmospheric Glow based on Current Wellbeing State */}
@@ -151,6 +173,8 @@ export const App: React.FC = () => {
         setIsCollapsed={setIsSidebarCollapsed}
         isMobileOpen={isMobileDrawerOpen}
         setIsMobileOpen={setIsMobileDrawerOpen}
+        onLogout={handleLogout}
+        username={authSession?.user?.username}
       />
 
       {/* Main Canvas Area */}
@@ -169,6 +193,8 @@ export const App: React.FC = () => {
           onOpenMobileMenu={() => setIsMobileDrawerOpen(true)}
           onSelectScenario={handleSelectScenario}
           alertCount={alerts.length}
+          onLogout={handleLogout}
+          username={authSession?.user?.username}
         />
 
         {/* View Content Canvas */}
@@ -288,6 +314,8 @@ export const App: React.FC = () => {
         profile={profile}
         onSaveProfile={handleUpdateProfile}
         onResetData={handleSelectScenario}
+        onLogout={handleLogout}
+        username={authSession?.user?.username}
       />
     </div>
   );

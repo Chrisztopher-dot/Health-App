@@ -14,7 +14,8 @@ import {
   ChevronRight, 
   ShieldCheck,
   Sliders,
-  Bot
+  Bot,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,6 +30,8 @@ interface SidebarProps {
   setIsCollapsed: (collapsed: boolean) => void;
   isMobileOpen?: boolean;
   setIsMobileOpen?: (open: boolean) => void;
+  onLogout?: () => void;
+  username?: string;
 }
 
 interface NavItem {
@@ -58,6 +61,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setIsCollapsed,
   isMobileOpen = false,
   setIsMobileOpen,
+  onLogout,
+  username,
 }) => {
   const currentAvatarState = avatarState || {
     category: 'good',
@@ -253,15 +258,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="flex items-center justify-between p-2 rounded-2xl bg-slate-800/80 hover:bg-slate-750 border border-slate-700/60 cursor-pointer transition-colors group"
             >
               <div className="flex items-center gap-2.5 overflow-hidden">
-                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-extrabold text-xs shadow-inner">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-extrabold text-xs shadow-inner flex-shrink-0">
                   {profile.name.charAt(0)}
                 </div>
                 <div className="overflow-hidden text-left">
                   <div className="text-xs font-extrabold text-white truncate group-hover:text-emerald-300 transition-colors">
                     {profile.name}
                   </div>
-                  <div className="text-[10px] text-slate-400 font-medium">
-                    Age {profile.age} • Settings
+                  <div className="text-[10px] text-slate-400 font-medium truncate">
+                    {username ? `@${username}` : `Age ${profile.age}`} • Settings
                   </div>
                 </div>
               </div>
@@ -273,6 +278,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Sliders className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Logout button */}
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="w-full py-1.5 px-2.5 rounded-xl bg-slate-800/50 hover:bg-rose-950/50 border border-slate-750 hover:border-rose-500/40 text-[11px] font-bold text-slate-400 hover:text-rose-300 flex items-center justify-center gap-1.5 transition-all"
+                title="Log out from this device"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Log Out Account</span>
+              </button>
+            )}
 
             {/* Privacy Badge */}
             <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold text-slate-400 bg-slate-900/60 rounded-xl border border-slate-800/80">
@@ -289,6 +307,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               {profile.name.charAt(0)}
             </button>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+                title="Log Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
             <div title="AES-256 Encrypted & Local Storage">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
             </div>
