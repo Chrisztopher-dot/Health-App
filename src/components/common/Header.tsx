@@ -1,4 +1,5 @@
 import { UserProfile, AppTab } from '../../types/health';
+import { SpeechService, CURATED_VOICE_PERSONAS } from '../../services/speechService';
 import { 
   Heart, 
   Volume2, 
@@ -39,6 +40,20 @@ export const Header: React.FC<HeaderProps> = ({
     day: 'numeric',
     year: 'numeric',
   });
+
+  const currentPersona = CURATED_VOICE_PERSONAS.find((p) => p.id === (profile.voicePersona || 'samantha')) || CURATED_VOICE_PERSONAS[0];
+
+  const cycleVoicePersona = () => {
+    const personas = CURATED_VOICE_PERSONAS;
+    const currentIndex = personas.findIndex((p) => p.id === (profile.voicePersona || 'samantha'));
+    const nextPersona = personas[(currentIndex + 1) % personas.length];
+    onUpdateProfile({
+      ...profile,
+      voicePersona: nextPersona.id,
+      voiceId: undefined,
+    });
+    SpeechService.speak(`Voice changed to ${nextPersona.name}`, profile.voiceSpeed, undefined, nextPersona.id, nextPersona.defaultPitch);
+  };
 
   const toggleSound = () => {
     onUpdateProfile({
@@ -145,14 +160,25 @@ export const Header: React.FC<HeaderProps> = ({
               </select>
             </div>
 
+            {/* AI Speaker Voice Selector Button */}
+            <button
+              onClick={cycleVoicePersona}
+              className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 rounded-xl font-bold text-xs sm:text-sm border border-indigo-200 transition-colors flex items-center gap-1 active:scale-95"
+              title={`Active AI Speaker: ${currentPersona.name} (${currentPersona.accent}). Click to switch voice.`}
+            >
+              <span className="text-sm">{currentPersona.emoji}</span>
+              <span className="hidden sm:inline text-[10px] sm:text-xs text-indigo-600 font-semibold">Voice:</span>
+              <span>{currentPersona.name}</span>
+            </button>
+
             {/* Voice Speed Button */}
             <button
               onClick={cycleVoiceSpeed}
-              className="px-2.5 sm:px-3 py-1 sm:py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 rounded-xl font-bold text-xs sm:text-sm border border-indigo-200 transition-colors flex items-center gap-1 active:scale-95"
+              className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 rounded-xl font-bold text-xs sm:text-sm border border-indigo-200 transition-colors flex items-center gap-1 active:scale-95"
               title="Click to adjust voice talking speed"
             >
-              <span className="text-[10px] sm:text-xs text-indigo-600 font-semibold">Voice:</span>
-              <span>{formatSpeedLabel(profile.voiceSpeed)}</span>
+              <span className="text-[10px] sm:text-xs text-indigo-600 font-semibold">Speed:</span>
+              <span>{formatSpeedLabel(profile.voiceSpeed).split(' ')[0]}</span>
             </button>
 
             {/* Text Size Switcher */}

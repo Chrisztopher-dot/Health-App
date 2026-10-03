@@ -19,12 +19,13 @@ import {
   ChevronRight,
   Flame,
   ArrowRight,
-  Upload,
   RefreshCw,
   Sliders,
   History,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Image as ImageIcon,
+  Video
 } from 'lucide-react';
 
 interface AIFoodScannerProps {
@@ -159,19 +160,66 @@ export const AIFoodScanner: React.FC<AIFoodScannerProps> = ({
     }
   };
 
-  // Handle File Upload
+  // Process Chosen Photo or Video from Library
+  const processUploadedFile = (file: File) => {
+    stopCamera();
+
+    if (file.type.startsWith('video/')) {
+      setIsAnalyzing(true);
+      setAnalysisStep('🎥 Extracting clear meal frame from uploaded video...');
+
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      const objectUrl = URL.createObjectURL(file);
+      video.src = objectUrl;
+
+      video.onloadeddata = () => {
+        // Seek to 1 second or midway for a clear shot
+        video.currentTime = Math.min(1.0, video.duration > 0 ? video.duration / 2 : 0.5);
+      };
+
+      video.onseeked = () => {
+        const canvas = canvasRef.current || document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setCapturedImage(dataUrl);
+          triggerAIAnalysis(dataUrl, file.name);
+        }
+        URL.revokeObjectURL(objectUrl);
+      };
+
+      video.onerror = () => {
+        setIsAnalyzing(false);
+        setFeedbackMessage('Could not read video from library. Please select another photo or video.');
+        URL.revokeObjectURL(objectUrl);
+      };
+    } else {
+      // Photo file
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        setCapturedImage(dataUrl);
+        triggerAIAnalysis(dataUrl, file.name);
+      };
+      reader.onerror = () => {
+        setFeedbackMessage('Could not read photo from library. Please try again.');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle File Upload event
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      setCapturedImage(dataUrl);
-      stopCamera();
-      triggerAIAnalysis(dataUrl, file.name);
-    };
-    reader.readAsDataURL(file);
+    processUploadedFile(file);
+    e.target.value = ''; // Reset input to allow selecting same file again
   };
 
   // Trigger Simulated Visual AI Pipeline
@@ -538,28 +586,35 @@ export const AIFoodScanner: React.FC<AIFoodScannerProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={startCamera}
-                      className="py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-200 flex items-center justify-center gap-2 transition-all active:scale-95"
-                    >
-                      <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
-                      <span>Open Live Camera</span>
-                    </button>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        onClick={startCamera}
+                        className="py-3 px-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-200 flex items-center justify-center gap-2 transition-all active:scale-95"
+                      >
+                        <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
+                        <span>Open Live Camera</span>
+                      </button>
 
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="py-3 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs sm:text-sm border border-slate-300 flex items-center justify-center gap-2 transition-all active:scale-95"
-                    >
-                      <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
-                      <span>Upload Photo</span>
-                    </button>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="py-3 px-3.5 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-950 font-extrabold text-xs sm:text-sm border-2 border-indigo-200 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-xs"
+                        title="Upload chosen pictures or videos from library"
+                      >
+                        <ImageIcon className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                        <Video className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                        <span>Upload from Library</span>
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-center text-slate-500 font-semibold flex items-center justify-center gap-1">
+                      <span>📸 Photos & 🎥 Videos supported from your device library</span>
+                    </p>
 
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
-                      capture="environment"
+                      accept="image/*,video/*,.mp4,.mov,.webm,.m4v,.png,.jpg,.jpeg,.heic,.webp"
                       onChange={handleFileUpload}
                       className="hidden"
                     />

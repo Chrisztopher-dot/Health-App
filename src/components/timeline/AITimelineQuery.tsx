@@ -41,13 +41,43 @@ export const AITimelineQuery: React.FC<AITimelineQueryProps> = ({
     );
   });
 
-  const handleRunQuery = (textToQuery?: string) => {
+  const handleRunQuery = async (textToQuery?: string) => {
     const q = (textToQuery || queryInput).trim();
     if (!q) return;
 
+    setQueryInput('');
+
+    // Try backend Gemini AI first
+    try {
+      const response = await fetch('/api/timeline-query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q, history, profile }),
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        if (json && json.answer) {
+          const geminiRes: RetrospectiveQueryResult = {
+            query: q,
+            answer: json.reply || json.answer,
+            relevantDateRange: 'Past 30 Days Trend',
+            bulletPoints: [json.reply || json.answer],
+            doctorConsultSuggested: false,
+          };
+          setResult(geminiRes);
+          if (profile.soundEnabled) {
+            SpeechService.speak(geminiRes.answer, profile.voiceSpeed);
+          }
+          return;
+        }
+      }
+    } catch (_) {
+      // Backend offline or unconfigured, fallback to local engine
+    }
+
     const res = HealthAnalyticsService.queryRetrospective(q, history, profile);
     setResult(res);
-    setQueryInput('');
 
     if (profile.soundEnabled) {
       SpeechService.speak(res.answer, profile.voiceSpeed);

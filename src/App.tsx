@@ -8,8 +8,10 @@ import {
 } from './types/health';
 import { HealthStorageService } from './services/healthStorage';
 import { HealthAnalyticsService } from './services/healthAnalytics';
-import { Header } from './components/common/Header';
-import { CheckInWizard } from './components/checkin/CheckInWizard';
+import { SpeechService } from './services/speechService';
+import { Sidebar } from './components/layout/Sidebar';
+import { TopBar } from './components/layout/TopBar';
+import { MobileNav } from './components/layout/MobileNav';
 import { DailySummaryCard } from './components/checkin/DailySummaryCard';
 import { ConversationalCheckIn } from './components/chat/ConversationalCheckIn';
 import { HealthTimeline } from './components/timeline/HealthTimeline';
@@ -20,15 +22,16 @@ import { BayAreaHappenings } from './components/happenings/BayAreaHappenings';
 import { HealthyRecipes } from './components/recipes/HealthyRecipes';
 import { AIFoodScanner } from './components/foodscanner/AIFoodScanner';
 import { SettingsModal } from './components/settings/SettingsModal';
-import { Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile>(() => HealthStorageService.getProfile());
   const [history, setHistory] = useState<CheckInRecord[]>(() => HealthStorageService.getCheckIns());
   const [todayRecord, setTodayRecord] = useState<CheckInRecord | null>(() => HealthStorageService.getTodayCheckIn());
-  const [activeTab, setActiveTab] = useState<AppTab>('checkin');
+  const [activeTab, setActiveTab] = useState<AppTab>('conversational');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isReDoingCheckIn, setIsReDoingCheckIn] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
 
   // Evaluate alerts based on history
   const [alerts, setAlerts] = useState<SmartAlert[]>(() => 
@@ -41,6 +44,15 @@ export const App: React.FC = () => {
     setAlerts(computedAlerts);
   }, [history, profile]);
 
+  // Keep SpeechService active voice and persona in sync with profile
+  useEffect(() => {
+    SpeechService.setActiveVoiceConfig({
+      voicePersona: profile.voicePersona || 'samantha',
+      voiceId: profile.voiceId,
+      voicePitch: profile.voicePitch || 1.0,
+    });
+  }, [profile.voicePersona, profile.voiceId, profile.voicePitch]);
+
   const handleUpdateProfile = (updated: UserProfile) => {
     setProfile(updated);
     HealthStorageService.saveProfile(updated);
@@ -52,7 +64,7 @@ export const App: React.FC = () => {
     const updatedHistory = HealthStorageService.getCheckIns();
     setHistory(updatedHistory);
     setIsReDoingCheckIn(false);
-    setActiveTab('checkin');
+    setActiveTab('conversational');
   };
 
   const handleDismissAlert = (id: string) => {
@@ -67,7 +79,7 @@ export const App: React.FC = () => {
     setHistory(seed);
     setTodayRecord(null);
     setIsReDoingCheckIn(false);
-    setActiveTab('checkin');
+    setActiveTab('conversational');
   };
 
   // Text scaling classes
@@ -82,126 +94,143 @@ export const App: React.FC = () => {
     ? HealthAnalyticsService.generateDailySummary(todayRecord, history, profile)
     : null;
 
+  // Dynamic Wellbeing Avatar State
+  const avatarState = HealthAnalyticsService.evaluateWellbeingAvatarState(history, profile);
+
   return (
-    <div className={`min-h-screen bg-slate-50 text-slate-900 ${textScaleClasses}`}>
-      {/* Top Accessible Navigation */}
-      <Header
-        profile={profile}
-        onUpdateProfile={handleUpdateProfile}
+    <div className={`min-h-screen bg-slate-100/70 text-slate-900 flex ${textScaleClasses}`}>
+      {/* Sleek Collapsible Sidebar (Desktop + Tablet) */}
+      <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        profile={profile}
         alertCount={alerts.length}
-        onSelectScenario={handleSelectScenario}
+        isTodayDone={!!todayRecord}
+        avatarState={avatarState}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
+        isMobileOpen={isMobileDrawerOpen}
+        setIsMobileOpen={setIsMobileDrawerOpen}
       />
 
-      {/* Main Content Area */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Tab 1: Daily Check-In */}
-        {activeTab === 'checkin' && (
-          <div>
-            {!todayRecord || isReDoingCheckIn ? (
-              <div className="space-y-4">
-                {/* Switch to conversational banner */}
-                <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 max-w-3xl mx-auto">
-                  <div className="flex items-center gap-3 text-amber-950 font-bold text-sm sm:text-base">
-                    <Sparkles className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                    <span>Prefer speaking your check-in instead of tapping buttons?</span>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('conversational')}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-extrabold shadow-sm transition-all whitespace-nowrap active:scale-95"
-                  >
-                    Try Voice Check-In Mode
-                  </button>
-                </div>
+      {/* Main Canvas Area */}
+      <div 
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+          isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64 lg:ml-72'
+        } pb-24 md:pb-10`}
+      >
+        {/* Top App Header & Controls */}
+        <TopBar
+          profile={profile}
+          onUpdateProfile={handleUpdateProfile}
+          activeTab={activeTab}
+          avatarState={avatarState}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenMobileMenu={() => setIsMobileDrawerOpen(true)}
+          onSelectScenario={handleSelectScenario}
+          alertCount={alerts.length}
+        />
 
-                <CheckInWizard
+        {/* View Content Canvas */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-fadeIn">
+          {/* Primary Voice AI Check-In / Daily Summary */}
+          {(activeTab === 'conversational' || activeTab === 'checkin') && (
+            <div className="space-y-4">
+              {!todayRecord || isReDoingCheckIn ? (
+                <ConversationalCheckIn
                   profile={profile}
                   onComplete={handleCompleteCheckIn}
-                  initialData={todayRecord || undefined}
+                  onCancel={() => {
+                    if (todayRecord) {
+                      setIsReDoingCheckIn(false);
+                    }
+                  }}
+                  onUpdateVoiceSpeed={(speed) => handleUpdateProfile({ ...profile, voiceSpeed: speed })}
+                  onUpdateVoicePersona={(personaId) => handleUpdateProfile({ ...profile, voicePersona: personaId, voiceId: undefined })}
+                  onToggleSound={() => handleUpdateProfile({ ...profile, soundEnabled: !profile.soundEnabled })}
                 />
-              </div>
-            ) : (
-              <DailySummaryCard
-                record={todayRecord}
-                summary={dailySummary!}
-                profile={profile}
-                onRedoCheckIn={() => setIsReDoingCheckIn(true)}
-                onGoToTimeline={() => setActiveTab('timeline')}
-                onGoToScanner={() => setActiveTab('scanner')}
-              />
-            )}
-          </div>
-        )}
+              ) : (
+                <DailySummaryCard
+                  record={todayRecord}
+                  summary={dailySummary!}
+                  profile={profile}
+                  onRedoCheckIn={() => setIsReDoingCheckIn(true)}
+                  onGoToTimeline={() => setActiveTab('timeline')}
+                  onGoToScanner={() => setActiveTab('scanner')}
+                />
+              )}
+            </div>
+          )}
 
-        {/* Tab 2: Conversational Check-In Mode */}
-        {activeTab === 'conversational' && (
-          <ConversationalCheckIn
-            profile={profile}
-            onComplete={handleCompleteCheckIn}
-            onCancel={() => setActiveTab('checkin')}
-            onUpdateVoiceSpeed={(speed) => handleUpdateProfile({ ...profile, voiceSpeed: speed })}
-          />
-        )}
+          {/* Tab 3: Health (Medicine Tracker + BP & Pulse Register + Diagrams & Trends) */}
+          {(activeTab === 'timeline' || activeTab === 'medicine') && (
+            <HealthTimeline
+              history={history}
+              profile={profile}
+              onUpdateProfile={handleUpdateProfile}
+              onHistoryUpdated={(newHistory) => setHistory(newHistory)}
+              defaultSection="medicine"
+            />
+          )}
 
-        {/* Tab 3: Health (Diagrams & Trends + Medicine Tracker) */}
-        {(activeTab === 'timeline' || activeTab === 'medicine') && (
-          <HealthTimeline
-            history={history}
-            profile={profile}
-            onUpdateProfile={handleUpdateProfile}
-            defaultSection={activeTab === 'medicine' ? 'medicine' : 'diagram'}
-          />
-        )}
+          {/* Tab 4: Smart Risk Alerts */}
+          {activeTab === 'alerts' && (
+            <SmartAlertsList
+              alerts={alerts}
+              profile={profile}
+              onDismissAlert={handleDismissAlert}
+            />
+          )}
 
-        {/* Tab 4: Smart Risk Alerts */}
-        {activeTab === 'alerts' && (
-          <SmartAlertsList
-            alerts={alerts}
-            profile={profile}
-            onDismissAlert={handleDismissAlert}
-          />
-        )}
+          {/* Tab 6: Physical Activities & Exercise Tracker */}
+          {activeTab === 'activities' && (
+            <ActivitiesTracker
+              profile={profile}
+            />
+          )}
 
-        {/* Tab 6: Physical Activities & Exercise Tracker */}
-        {activeTab === 'activities' && (
-          <ActivitiesTracker
-            profile={profile}
-          />
-        )}
+          {/* Tab 7: Reminders & Tasks */}
+          {activeTab === 'reminders' && (
+            <RemindersTracker
+              profile={profile}
+            />
+          )}
 
-        {/* Tab 7: Reminders & Tasks */}
-        {activeTab === 'reminders' && (
-          <RemindersTracker
-            profile={profile}
-          />
-        )}
+          {/* Tab 8: Bay Area Fun & Events */}
+          {activeTab === 'happenings' && (
+            <BayAreaHappenings
+              profile={profile}
+            />
+          )}
 
-        {/* Tab 8: Bay Area Fun & Events */}
-        {activeTab === 'happenings' && (
-          <BayAreaHappenings
-            profile={profile}
-          />
-        )}
+          {/* Tab 9: Healthy Meals & Low-Sodium / Vegetarian Recipes */}
+          {activeTab === 'recipes' && (
+            <HealthyRecipes
+              profile={profile}
+              onNavigateToScanner={() => setActiveTab('scanner')}
+            />
+          )}
 
-        {/* Tab 9: Healthy Meals & Low-Sodium / Vegetarian Recipes */}
-        {activeTab === 'recipes' && (
-          <HealthyRecipes
-            profile={profile}
-            onNavigateToScanner={() => setActiveTab('scanner')}
-          />
-        )}
+          {/* Tab 10: AI Food Scanner & Dining Out Assistant */}
+          {activeTab === 'scanner' && (
+            <AIFoodScanner
+              profile={profile}
+              onNavigateToRecipes={() => setActiveTab('recipes')}
+              onNavigateToCheckin={() => setActiveTab('checkin')}
+            />
+          )}
+        </main>
+      </div>
 
-        {/* Tab 10: AI Food Scanner & Dining Out Assistant */}
-        {activeTab === 'scanner' && (
-          <AIFoodScanner
-            profile={profile}
-            onNavigateToRecipes={() => setActiveTab('recipes')}
-            onNavigateToCheckin={() => setActiveTab('checkin')}
-          />
-        )}
-      </main>
+      {/* Mobile Floating Bottom Navigation */}
+      <MobileNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        alertCount={alerts.length}
+        isTodayDone={!!todayRecord}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+      />
 
       {/* Settings & Medication Manager Modal */}
       <SettingsModal

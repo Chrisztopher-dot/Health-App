@@ -8,15 +8,20 @@ import {
   ReminderPriority
 } from '../../types/health';
 import { HealthStorageService } from '../../services/healthStorage';
-import { SpeechService } from '../../services/speechService';
+import { SpeechService, CURATED_VOICE_PERSONAS } from '../../services/speechService';
+import { MedicalAIService } from '../../services/medicalAIService';
 import { 
   Mic, 
   MicOff, 
   Send, 
   Volume2, 
+  VolumeX,
   Sparkles, 
   CheckCircle2, 
-  Heart
+  Heart,
+  Activity,
+  Pill,
+  Stethoscope
 } from 'lucide-react';
 
 interface ConversationalCheckInProps {
@@ -24,6 +29,8 @@ interface ConversationalCheckInProps {
   onComplete: (record: CheckInRecord) => void;
   onCancel: () => void;
   onUpdateVoiceSpeed?: (speed: number) => void;
+  onUpdateVoicePersona?: (personaId: string) => void;
+  onToggleSound?: () => void;
 }
 
 interface Message {
@@ -50,8 +57,11 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
   onComplete,
   onCancel,
   onUpdateVoiceSpeed,
+  onUpdateVoicePersona,
+  onToggleSound,
 }) => {
-  const [currentSpeed, setCurrentSpeed] = useState<number>(profile.voiceSpeed || 0.9);
+  const [currentSpeed, setCurrentSpeed] = useState<number>(profile.voiceSpeed || 1.0);
+  const [currentPersonaId, setCurrentPersonaId] = useState<string>(profile.voicePersona || 'samantha');
   const [stage, setStage] = useState<ConversationalStage>('greeting_mood');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState<string>('');
@@ -100,9 +110,21 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
       SpeechService.speak(initialGreeting, profile.voiceSpeed);
     }
   }, []);
+  const activePersona = CURATED_VOICE_PERSONAS.find((p) => p.id === currentPersonaId) || CURATED_VOICE_PERSONAS[0];
 
   const speakText = (text: string) => {
-    SpeechService.speak(text, currentSpeed);
+    SpeechService.speak(text, currentSpeed, undefined, activePersona.id, activePersona.defaultPitch);
+  };
+
+  const handlePersonaChange = (personaId: string) => {
+    setCurrentPersonaId(personaId);
+    if (onUpdateVoicePersona) {
+      onUpdateVoicePersona(personaId);
+    }
+    const chosen = CURATED_VOICE_PERSONAS.find((p) => p.id === personaId) || CURATED_VOICE_PERSONAS[0];
+    if (profile.soundEnabled) {
+      SpeechService.speak(`Voice changed to ${chosen.name}`, currentSpeed, undefined, chosen.id, chosen.defaultPitch);
+    }
   };
 
   const handleSpeedChange = (newSpeed: number) => {
@@ -110,7 +132,9 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
     if (onUpdateVoiceSpeed) {
       onUpdateVoiceSpeed(newSpeed);
     }
-    SpeechService.speak(`Talking speed set to ${newSpeed}x`, newSpeed);
+    if (profile.soundEnabled) {
+      SpeechService.speak(`Talking speed set to ${newSpeed}x`, newSpeed);
+    }
   };
 
   const handleSendMessage = (textToSend?: string) => {
@@ -182,9 +206,43 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
       reminderNote += `(By the way, check the "Bay Area Fun" tab for upcoming events like the Ghirardelli Chocolate Festival, Ferry Plaza Market, and Half Moon Bay Pumpkin Fair!) `;
     }
 
-    // Check if user asked for low-sodium recipes or vegetarian food suggestions
-    if (lower.includes('recipe') || lower.includes('low sodium') || lower.includes('non salty') || lower.includes('salt free') || lower.includes('vegetarian') || lower.includes('what to eat') || lower.includes('healthy food')) {
-      reminderNote += `(I have wonderful non-salty and vegetarian recipes in your "Healthy Food" tab, like Tuscan White Bean Stew and Lentil Bourguignon!) `;
+    // 1. Check for Linked Medical Information Queries or Commands (e.g. BP, meds, doctor visits, alerts, targets)
+    const medicalAIResult = MedicalAIService.processMedicalQuery(userText, profile);
+    if (medicalAIResult) {
+      if (medicalAIResult.isActionLogged) {
+        if (medicalAIResult.category === 'blood_pressure') {
+          const bpMatch = lower.match(/(\d{2,3})\s*(?:\/|over|\s)\s*(\d{2,3})/);
+          if (bpMatch) {
+            const sys = parseInt(bpMatch[1], 10);
+            const dia = parseInt(bpMatch[2], 10);
+            setExtractedRecord((prev) => ({
+              ...prev,
+              bloodPressure: { measured: true, systolic: sys, diastolic: dia, pulse: 72 },
+            }));
+          }
+        } else if (medicalAIResult.category === 'medication') {
+          setExtractedRecord((prev) => ({
+            ...prev,
+            medicationStatus: 'taken',
+          }));
+        }
+      }
+
+      setTimeout(() => {
+        const finalResponse = reminderNote ? `${reminderNote}\n\n${medicalAIResult.answer}` : medicalAIResult.answer;
+        const aiMsg: Message = {
+          id: `ai-${Date.now()}`,
+          sender: 'ai',
+          text: finalResponse,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          suggestions: medicalAIResult.followUpSuggestions,
+        };
+        setMessages([...currentHistory, aiMsg]);
+        if (profile.soundEnabled) {
+          speakText(medicalAIResult.spokenText);
+        }
+      }, 350);
+      return;
     }
 
     if (currentStage === 'greeting_mood') {
@@ -407,7 +465,7 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
                 <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300" />
               </div>
               <div>
-                <h2 className="text-lg sm:text-xl font-extrabold leading-tight">Voice Assistant</h2>
+                <h2 className="text-lg sm:text-xl font-extrabold leading-tight">AI Check-In Assistant</h2>
                 <p className="text-[11px] sm:text-xs text-emerald-100 font-medium">
                   Talk or type — logging check-in automatically
                 </p>
@@ -421,16 +479,68 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
             </button>
           </div>
 
-          {/* Speed Adjustment Bar */}
-          <div className="bg-emerald-900/90 text-white px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-1.5 text-xs border-b border-emerald-800/60">
-            <span className="font-bold flex items-center gap-1 text-emerald-200 text-[11px] sm:text-xs">
-              <Volume2 className="w-3.5 h-3.5" />
-              Voice Speed:
-            </span>
+          {/* Speaker, Speed & Mute Adjustment Bar */}
+          <div className="bg-emerald-900/90 text-white px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-emerald-800/60">
+            {/* Left: Persona Switcher & Mute Toggle */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Mute / Unmute Button */}
+              <button
+                onClick={() => {
+                  if (onToggleSound) {
+                    onToggleSound();
+                  }
+                  if (profile.soundEnabled) {
+                    SpeechService.stopSpeaking();
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-lg font-black text-[11px] sm:text-xs flex items-center gap-1.5 transition-all active:scale-95 border ${
+                  !profile.soundEnabled
+                    ? 'bg-rose-500/30 hover:bg-rose-500/40 text-rose-200 border-rose-400/50 shadow-xs'
+                    : 'bg-emerald-800 hover:bg-emerald-700 text-emerald-100 border-emerald-600'
+                }`}
+                title={profile.soundEnabled ? 'Click to Mute AI voice' : 'Click to Unmute AI voice'}
+              >
+                {!profile.soundEnabled ? (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-rose-300" />
+                    <span>Muted (Silent)</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-300" />
+                    <span>Voice On</span>
+                  </>
+                )}
+              </button>
+
+              {/* Persona Switcher */}
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold flex items-center gap-1 text-emerald-200 text-[11px] sm:text-xs">
+                  Speaker:
+                </span>
+                <button
+                  onClick={() => {
+                    const personas = CURATED_VOICE_PERSONAS;
+                    const idx = personas.findIndex((p) => p.id === currentPersonaId);
+                    const nextP = personas[(idx + 1) % personas.length];
+                    handlePersonaChange(nextP.id);
+                  }}
+                  className="px-2 py-0.5 sm:py-1 rounded-md bg-emerald-800 hover:bg-emerald-700 text-emerald-100 font-extrabold text-[11px] sm:text-xs border border-emerald-700 flex items-center gap-1 transition-all active:scale-95"
+                  title="Click to switch AI speaking voice"
+                >
+                  <span>{activePersona.emoji}</span>
+                  <span>{activePersona.name}</span>
+                  <span className="text-[10px] text-emerald-300">({activePersona.accent})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Right: Speed Selector */}
             <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+              <span className="text-emerald-300 font-bold text-[10px] sm:text-xs">Speed:</span>
               {[
                 { val: 0.75, label: '0.75x' },
-                { val: 0.9, label: '0.9x Senior' },
+                { val: 0.9, label: '0.9x' },
                 { val: 1.0, label: '1.0x' },
                 { val: 1.25, label: '1.25x' },
               ].map((s) => (
@@ -439,7 +549,7 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
                   onClick={() => handleSpeedChange(s.val)}
                   className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md font-bold text-[11px] sm:text-xs transition-all ${
                     Math.abs(currentSpeed - s.val) < 0.05
-                      ? 'bg-amber-400 text-slate-900 shadow-sm'
+                      ? 'bg-amber-400 text-slate-900 shadow-sm font-extrabold'
                       : 'bg-emerald-800/80 hover:bg-emerald-700 text-emerald-100'
                   }`}
                 >
@@ -500,8 +610,44 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
             <div ref={chatEndRef} />
           </div>
 
+          {/* Quick Medical Info Topic Chips */}
+          <div className="px-3 sm:px-4 pt-2 pb-1 bg-slate-50 border-t border-slate-200 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 flex-shrink-0">
+              <Sparkles className="w-3 h-3 text-amber-500" />
+              <span>Ask AI:</span>
+            </span>
+            <button
+              onClick={() => handleSendMessage('What is my latest blood pressure and pulse?')}
+              className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold text-[11px] border border-slate-200 hover:border-rose-300 transition-all flex items-center gap-1 flex-shrink-0 shadow-xs"
+            >
+              <Activity className="w-3 h-3 text-rose-500" />
+              <span>Latest BP & Pulse</span>
+            </button>
+            <button
+              onClick={() => handleSendMessage('What medications do I have scheduled today?')}
+              className="px-2.5 py-1 rounded-lg bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-bold text-[11px] border border-slate-200 hover:border-emerald-300 transition-all flex items-center gap-1 flex-shrink-0 shadow-xs"
+            >
+              <Pill className="w-3 h-3 text-emerald-500" />
+              <span>Today's Medicines</span>
+            </button>
+            <button
+              onClick={() => handleSendMessage('What did my doctor say and recommend?')}
+              className="px-2.5 py-1 rounded-lg bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold text-[11px] border border-slate-200 hover:border-blue-300 transition-all flex items-center gap-1 flex-shrink-0 shadow-xs"
+            >
+              <Stethoscope className="w-3 h-3 text-blue-500" />
+              <span>Doctor Notes</span>
+            </button>
+            <button
+              onClick={() => handleSendMessage('What are my healthy vitals target ranges?')}
+              className="px-2.5 py-1 rounded-lg bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold text-[11px] border border-slate-200 hover:border-indigo-300 transition-all flex items-center gap-1 flex-shrink-0 shadow-xs"
+            >
+              <Heart className="w-3 h-3 text-indigo-500" />
+              <span>My Target Ranges</span>
+            </button>
+          </div>
+
           {/* Input Bar */}
-          <div className="p-3 sm:p-4 bg-white border-t-2 border-slate-200 space-y-2">
+          <div className="p-3 sm:p-4 bg-white border-t border-slate-200 space-y-2">
             {voiceError && (
               <p className="text-xs font-bold text-rose-600 px-2">{voiceError}</p>
             )}

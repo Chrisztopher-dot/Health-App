@@ -73,8 +73,8 @@ export const DEFAULT_PROFILE: UserProfile = {
   medications: DEFAULT_MEDICATIONS,
   highContrast: false,
   textScale: 'large',
-  soundEnabled: true,
-  voiceSpeed: 0.9,
+  soundEnabled: false, // Default to muted
+  voiceSpeed: 1.0, // Default to normal speed (1.0x)
 };
 
 export class HealthStorageService {
@@ -180,6 +180,56 @@ export class HealthStorageService {
     const todayStr = new Date().toISOString().split('T')[0];
     const checkIns = this.getCheckIns();
     return checkIns.find((r) => r.date === todayStr) || null;
+  }
+
+  public static registerBloodPressureAndPulse(
+    date: string,
+    systolic: number,
+    diastolic: number,
+    pulse?: number,
+    notes?: string
+  ): CheckInRecord[] {
+    const existing = this.getCheckIns();
+    const index = existing.findIndex((r) => r.date === date);
+    let updatedRecord: CheckInRecord;
+
+    if (index >= 0) {
+      updatedRecord = {
+        ...existing[index],
+        bloodPressure: {
+          measured: true,
+          systolic,
+          diastolic,
+          pulse: pulse || existing[index].bloodPressure.pulse || 72,
+        },
+        dailyNotes: notes ? (existing[index].dailyNotes ? `${existing[index].dailyNotes} | ${notes}` : notes) : existing[index].dailyNotes,
+      };
+      existing[index] = updatedRecord;
+    } else {
+      updatedRecord = {
+        id: `checkin-${date}`,
+        date,
+        bloodPressure: {
+          measured: true,
+          systolic,
+          diastolic,
+          pulse: pulse || 72,
+        },
+        mood: 'good',
+        energyLevel: 7,
+        sleepQuality: 7,
+        painLevel: 0,
+        symptoms: [],
+        medicationStatus: 'taken',
+        dailyNotes: notes || '',
+        inputMode: 'standard',
+        timestamp: new Date().toISOString(),
+      };
+      existing.unshift(updatedRecord);
+    }
+
+    this.saveCheckIns(existing);
+    return [...existing];
   }
 
   // --- Medication Log Management ---
@@ -732,12 +782,12 @@ export class HealthStorageService {
       },
       {
         id: 'rem-5',
-        title: 'Replace AA Batteries in Blood Pressure Monitor',
+        title: 'Housework & Home Maintenance',
         priority: 'less_urgent',
         dueDate: in3Days,
         dueTime: 'Afternoon',
         completed: false,
-        notes: 'Check low battery symbol on the upper display.',
+        notes: 'Organize cupboards and light cleaning around the house.',
         createdAt: new Date().toISOString(),
       },
       {

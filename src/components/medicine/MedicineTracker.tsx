@@ -17,7 +17,9 @@ import {
   Sunset, 
   Moon, 
   Sunrise,
-  Check
+  Check,
+  Volume2,
+  CalendarDays
 } from 'lucide-react';
 
 interface MedicineTrackerProps {
@@ -73,6 +75,7 @@ export const MedicineTracker: React.FC<MedicineTrackerProps> = ({
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
   const [logs, setLogs] = useState<MedicationLogEntry[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isListening, setIsListening] = useState<boolean>(false);
@@ -90,6 +93,39 @@ export const MedicineTracker: React.FC<MedicineTrackerProps> = ({
     setLogs(dateLogs);
   }, [selectedDate]);
 
+  // Compute 7 days of the week for the selected date
+  const weekDays = React.useMemo(() => {
+    const cur = new Date(selectedDate + 'T00:00:00');
+    const day = cur.getDay();
+    const diffToMonday = cur.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(cur);
+    monday.setDate(diffToMonday);
+
+    const days: { dateStr: string; dayName: string; dayNumber: number; isSelected: boolean; isToday: boolean }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const str = d.toISOString().split('T')[0];
+      days.push({
+        dateStr: str,
+        dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        dayNumber: d.getDate(),
+        isSelected: str === selectedDate,
+        isToday: str === todayStr,
+      });
+    }
+    return days;
+  }, [selectedDate, todayStr]);
+
+  // Load all logs for the week
+  const weeklyLogs = React.useMemo(() => {
+    const res: Record<string, MedicationLogEntry[]> = {};
+    weekDays.forEach((wd) => {
+      res[wd.dateStr] = HealthStorageService.getMedicationLogsForDate(wd.dateStr);
+    });
+    return res;
+  }, [weekDays, logs]);
+
   const handleDateChange = (daysDelta: number) => {
     const current = new Date(selectedDate);
     current.setDate(current.getDate() + daysDelta);
@@ -97,11 +133,11 @@ export const MedicineTracker: React.FC<MedicineTrackerProps> = ({
     setSelectedDate(newDateStr);
   };
 
-  const handleToggleStatus = (medicationId: string, currentStatus: MedicationLogEntry['status']) => {
+  const handleToggleStatus = (medicationId: string, currentStatus: MedicationLogEntry['status'], targetDate = selectedDate) => {
     const nextStatus: MedicationLogEntry['status'] =
       currentStatus === 'taken' ? 'missed' : currentStatus === 'missed' ? 'pending' : 'taken';
 
-    HealthStorageService.updateMedicationLogStatus(selectedDate, medicationId, nextStatus);
+    HealthStorageService.updateMedicationLogStatus(targetDate, medicationId, nextStatus);
     const updatedLogs = HealthStorageService.getMedicationLogsForDate(selectedDate);
     setLogs(updatedLogs);
 
@@ -328,103 +364,231 @@ export const MedicineTracker: React.FC<MedicineTrackerProps> = ({
             </button>
           </div>
 
-          {!isToday && (
-            <button
-              onClick={() => setSelectedDate(todayStr)}
-              className="w-full sm:w-auto px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs sm:text-sm rounded-xl border border-emerald-300 transition-colors text-center"
-            >
-              Jump to Today
-            </button>
-          )}
+          {/* View Mode Toggle: Daily Routine vs 7-Day Schedule Matrix */}
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
+              <button
+                onClick={() => setViewMode('daily')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 ${
+                  viewMode === 'daily'
+                    ? 'bg-white text-emerald-800 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Daily Routine</span>
+              </button>
+              <button
+                onClick={() => setViewMode('weekly')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 ${
+                  viewMode === 'weekly'
+                    ? 'bg-white text-emerald-800 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                <span>7-Day Schedule Matrix</span>
+              </button>
+            </div>
+
+            {!isToday && (
+              <button
+                onClick={() => setSelectedDate(todayStr)}
+                className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs rounded-xl border border-emerald-300 transition-colors text-center"
+              >
+                Today
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* AI Voice Assistant Quick Action Bar */}
-      <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-3xl p-5 sm:p-6 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-2xl p-3 sm:p-3.5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={handleToggleVoice}
-            className={`p-3.5 rounded-2xl transition-all ${
+            className={`p-2 sm:p-2.5 rounded-xl transition-all flex-shrink-0 ${
               isListening
-                ? 'bg-rose-600 text-white animate-pulse shadow-lg ring-4 ring-rose-300'
+                ? 'bg-rose-600 text-white animate-pulse shadow-md ring-2 ring-rose-300'
                 : 'bg-white/20 hover:bg-white/30 text-white'
             }`}
-            title="Speak medication update to AI"
+            title="Speak medication update"
           >
-            {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+            {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <h4 className="font-extrabold text-lg">AI Medication Assistant</h4>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+              <button
+                onClick={() => SpeechService.speak(aiVoiceFeedback || 'Say e.g. "Took morning meds" or "Took Lisinopril"', profile.voiceSpeed)}
+                className="p-1 rounded-lg hover:bg-white/20 text-emerald-200 hover:text-white transition-colors"
+                title="Listen"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+              </button>
+              <h4 className="font-extrabold text-xs sm:text-sm tracking-tight truncate">Say it in AI</h4>
             </div>
-            <p className="text-xs sm:text-sm text-emerald-100 font-medium mt-0.5">
-              {aiVoiceFeedback || 'Say e.g. "I took my morning pills" or "Mark Lisinopril as taken"'}
+            <p className="text-[11px] sm:text-xs text-emerald-100 font-medium truncate">
+              {aiVoiceFeedback || 'Say e.g. "Took morning meds" or "Took Lisinopril"'}
             </p>
           </div>
         </div>
 
         {/* Quick voice chips */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
           <button
             onClick={() => handleProcessVoiceCommand('I took all my morning medications')}
-            className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all"
+            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all"
           >
             "Took morning meds"
           </button>
           <button
             onClick={() => handleProcessVoiceCommand('I took all my evening medications')}
-            className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all"
+            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all"
           >
             "Took evening meds"
           </button>
         </div>
       </div>
 
-      {/* Daily Adherence Scorecard */}
-      <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center">
-          <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider block">
-            Adherence Rate
-          </span>
-          <span className="text-3xl font-black text-emerald-700 mt-1 block">
-            {adherencePercent}%
-          </span>
-          <span className="text-xs font-semibold text-slate-600">
-            {takenCount} of {totalCount} Taken
-          </span>
-        </div>
+      {/* 7-DAY WEEKLY SCHEDULE MATRIX VIEW */}
+      {viewMode === 'weekly' && (
+        <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-2">
+                <CalendarDays className="w-6 h-6 text-emerald-600" />
+                <span>7-Day Medication Schedule & Adherence Matrix</span>
+              </h3>
+              <p className="text-xs sm:text-sm font-medium text-slate-600 mt-0.5">
+                Overview of all scheduled doses across the week. Click any status circle to toggle confirmation.
+              </p>
+            </div>
+          </div>
 
-        <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 text-center">
-          <span className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider block">
-            Taken ✅
-          </span>
-          <span className="text-3xl font-black text-emerald-700 mt-1 block">
-            {takenCount}
-          </span>
-          <span className="text-xs font-semibold text-emerald-800">Confirmed Doses</span>
-        </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b-2 border-slate-100 text-xs font-extrabold uppercase tracking-wider text-slate-500">
+                  <th className="py-3 px-3 min-w-[200px]">Medicine & Routine</th>
+                  {weekDays.map((wd) => (
+                    <th 
+                      key={wd.dateStr} 
+                      className={`py-3 px-2 text-center min-w-[70px] ${
+                        wd.isSelected ? 'bg-emerald-50 rounded-t-xl text-emerald-900 font-black' : ''
+                      }`}
+                    >
+                      <div className="text-[11px] text-slate-400">{wd.dayName}</div>
+                      <div className={`text-base font-black ${wd.isToday ? 'text-emerald-700 underline' : 'text-slate-800'}`}>
+                        {wd.dayNumber}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {profile.medications.filter((m) => m.active !== false).map((med) => (
+                  <tr key={med.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3.5 px-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-slate-900 text-sm sm:text-base">
+                          {med.name}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          {med.dosage}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium capitalize mt-0.5 flex items-center gap-1.5">
+                        <span className="font-bold text-emerald-700">{med.timeOfDay}</span>
+                        <span>•</span>
+                        <span className="truncate max-w-[180px]">{med.instructions}</span>
+                      </div>
+                    </td>
 
-        <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200 text-center">
-          <span className="text-xs font-extrabold text-rose-800 uppercase tracking-wider block">
-            Missed ❌
-          </span>
-          <span className="text-3xl font-black text-rose-700 mt-1 block">
-            {missedCount}
-          </span>
-          <span className="text-xs font-semibold text-rose-800">Missed Doses</span>
-        </div>
+                    {weekDays.map((wd) => {
+                      const dayLogs = weeklyLogs[wd.dateStr] || [];
+                      const medLog = dayLogs.find((l) => l.medicationId === med.id);
+                      const status = medLog?.status || 'pending';
 
-        <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-center">
-          <span className="text-xs font-extrabold text-amber-800 uppercase tracking-wider block">
-            Pending ⏳
-          </span>
-          <span className="text-3xl font-black text-amber-700 mt-1 block">
-            {pendingCount}
-          </span>
-          <span className="text-xs font-semibold text-amber-800">Remaining Today</span>
+                      return (
+                        <td 
+                          key={wd.dateStr} 
+                          className={`py-3 px-2 text-center align-middle ${
+                            wd.isSelected ? 'bg-emerald-50/40' : ''
+                          }`}
+                        >
+                          <button
+                            onClick={() => handleToggleStatus(med.id, status, wd.dateStr)}
+                            className={`w-9 h-9 mx-auto rounded-xl border-2 flex items-center justify-center font-black text-sm transition-all active:scale-90 shadow-xs ${
+                              status === 'taken'
+                                ? 'bg-emerald-600 border-emerald-700 text-white shadow-emerald-200'
+                                : status === 'missed'
+                                ? 'bg-rose-500 border-rose-600 text-white shadow-rose-200'
+                                : 'bg-slate-50 border-slate-300 text-slate-400 hover:bg-slate-100'
+                            }`}
+                            title={`${med.name} on ${wd.dateStr}: ${status.toUpperCase()} (Click to toggle)`}
+                          >
+                            {status === 'taken' ? '✓' : status === 'missed' ? '✕' : '•'}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* DAILY ROUTINE VIEW */}
+      {viewMode === 'daily' && (
+        <>
+          {/* Daily Adherence Scorecard */}
+          <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center">
+              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider block">
+                Adherence Rate
+              </span>
+              <span className="text-3xl font-black text-emerald-700 mt-1 block">
+                {adherencePercent}%
+              </span>
+              <span className="text-xs font-semibold text-slate-600">
+                {takenCount} of {totalCount} Taken
+              </span>
+            </div>
+
+            <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 text-center">
+              <span className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider block">
+                Taken ✅
+              </span>
+              <span className="text-3xl font-black text-emerald-700 mt-1 block">
+                {takenCount}
+              </span>
+              <span className="text-xs font-semibold text-emerald-800">Confirmed Doses</span>
+            </div>
+
+            <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200 text-center">
+              <span className="text-xs font-extrabold text-rose-800 uppercase tracking-wider block">
+                Missed ❌
+              </span>
+              <span className="text-3xl font-black text-rose-700 mt-1 block">
+                {missedCount}
+              </span>
+              <span className="text-xs font-semibold text-rose-800">Missed Doses</span>
+            </div>
+
+            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-center">
+              <span className="text-xs font-extrabold text-amber-800 uppercase tracking-wider block">
+                Pending ⏳
+              </span>
+              <span className="text-3xl font-black text-amber-700 mt-1 block">
+                {pendingCount}
+              </span>
+              <span className="text-xs font-semibold text-amber-800">Remaining Today</span>
+            </div>
+          </div>
 
       {/* Time Slots Checklist */}
       <div className="space-y-6">
@@ -561,6 +725,8 @@ export const MedicineTracker: React.FC<MedicineTrackerProps> = ({
           );
         })}
       </div>
+      </>
+      )}
 
       {/* Add New Medication Modal */}
       {isAddModalOpen && (

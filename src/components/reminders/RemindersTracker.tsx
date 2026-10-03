@@ -32,53 +32,53 @@ const QUICK_PRESETS: {
   emoji: string;
 }[] = [
   {
-    title: "Call Doctor's Office for Check-up",
-    priority: 'urgent',
-    dueTime: '10:00 AM',
-    notes: 'Schedule routine 6-month wellness review.',
-    emoji: '🩺',
-  },
-  {
-    title: 'Pick up Prescription Refills at Pharmacy',
-    priority: 'urgent',
-    dueTime: '02:00 PM',
-    notes: 'Pick up monthly medication supply.',
-    emoji: '💊',
-  },
-  {
-    title: 'Lab Blood Work & Fasting Test',
-    priority: 'urgent',
-    dueTime: '08:30 AM',
-    notes: 'Remember no food or coffee for 8 hours prior.',
-    emoji: '🩸',
-  },
-  {
-    title: 'Water the Houseplants & Garden',
-    priority: 'less_urgent',
-    dueTime: 'Morning',
-    notes: 'Give extra water to outdoor potted plants.',
-    emoji: '🌿',
-  },
-  {
-    title: 'Replace Batteries in BP Monitor',
+    title: 'Housework (Chores / Tidy Up)',
     priority: 'less_urgent',
     dueTime: 'Afternoon',
-    notes: 'Keep fresh AA batteries installed.',
-    emoji: '🔋',
-  },
-  {
-    title: 'Call Family / Grandchildren',
-    priority: 'less_urgent',
-    dueTime: '04:00 PM',
-    notes: 'Catch up on weekend plans.',
-    emoji: '📞',
+    notes: 'Home cleaning, laundry, organizing, or light maintenance.',
+    emoji: '🏡',
   },
   {
     title: 'Pick up Fresh Groceries & Fruit',
     priority: 'less_urgent',
     dueTime: '11:00 AM',
-    notes: 'Bananas, oatmeal, berries, and low-sodium soup.',
+    notes: 'Bananas, oatmeal, berries, greens, and healthy pantry items.',
     emoji: '🛒',
+  },
+  {
+    title: 'Call Family & Loved Ones',
+    priority: 'less_urgent',
+    dueTime: '04:00 PM',
+    notes: 'Catch up on weekend plans and family news.',
+    emoji: '📞',
+  },
+  {
+    title: 'Water the Houseplants & Garden',
+    priority: 'less_urgent',
+    dueTime: 'Morning',
+    notes: 'Give extra water to outdoor potted plants and garden beds.',
+    emoji: '🌿',
+  },
+  {
+    title: 'Evening Neighborhood Walk in Fresh Air',
+    priority: 'less_urgent',
+    dueTime: '05:30 PM',
+    notes: 'Enjoy 20-30 minutes of gentle fresh air stroll.',
+    emoji: '🚶',
+  },
+  {
+    title: 'Morning Gentle Stretch & Mobility',
+    priority: 'less_urgent',
+    dueTime: '08:00 AM',
+    notes: 'Light shoulder rolls, back stretch, and ankle rotations.',
+    emoji: '🧘',
+  },
+  {
+    title: 'Daily Hydration Goal Check',
+    priority: 'less_urgent',
+    dueTime: '02:00 PM',
+    notes: 'Keep a full water pitcher nearby and enjoy herbal tea.',
+    emoji: '💧',
   },
 ];
 
@@ -388,41 +388,48 @@ export const RemindersTracker: React.FC<RemindersTrackerProps> = ({ profile }) =
       </div>
 
       {/* AI Voice Assistant Quick Action Bar */}
-      <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-3xl p-5 sm:p-6 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-2xl p-3 sm:p-3.5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={handleToggleVoice}
-            className={`p-3.5 rounded-2xl transition-all ${
+            className={`p-2 sm:p-2.5 rounded-xl transition-all flex-shrink-0 ${
               isListening
-                ? 'bg-rose-600 text-white animate-pulse shadow-lg ring-4 ring-rose-300'
+                ? 'bg-rose-600 text-white animate-pulse shadow-md ring-2 ring-rose-300'
                 : 'bg-white/20 hover:bg-white/30 text-white'
             }`}
             title="Speak your reminder"
           >
-            {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+            {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <h4 className="font-extrabold text-lg">AI Voice Reminder Assistant</h4>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+              <button
+                onClick={() => SpeechService.speak(voiceFeedback || 'Say e.g. "Call doctor tomorrow" or "Water plants"', profile.voiceSpeed)}
+                className="p-1 rounded-lg hover:bg-white/20 text-indigo-200 hover:text-white transition-colors"
+                title="Listen"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+              </button>
+              <h4 className="font-extrabold text-xs sm:text-sm tracking-tight truncate">Say it in AI</h4>
             </div>
-            <p className="text-xs sm:text-sm text-indigo-100 font-medium mt-0.5">
-              {voiceFeedback || 'Say e.g. "Remind me to call the doctor tomorrow" (auto-urgent) or "Water the plants"'}
+            <p className="text-[11px] sm:text-xs text-indigo-100 font-medium truncate">
+              {voiceFeedback || 'Say e.g. "Call doctor tomorrow" or "Water plants"'}
             </p>
           </div>
         </div>
 
         {/* Quick Voice Chips */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
           <button
             onClick={() => handleProcessVoiceCommand('Add urgent reminder to call Dr. Miller for test results')}
-            className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all"
+            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all"
           >
-            "🚨 Call Dr. Miller"
+            "🚨 Call Doctor"
           </button>
           <button
             onClick={() => handleProcessVoiceCommand('Add less urgent reminder to buy fresh fruit and vitamins')}
-            className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all"
+            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all"
           >
             "📝 Buy Groceries"
           </button>

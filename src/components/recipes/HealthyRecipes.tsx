@@ -506,49 +506,56 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
       </div>
 
       {/* AI Voice Meal Assistant Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-teal-950 to-emerald-950 text-white rounded-3xl p-4 sm:p-6 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="bg-gradient-to-r from-emerald-900 via-teal-950 to-emerald-950 text-white rounded-2xl p-3 sm:p-3.5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={handleToggleVoice}
-            className={`p-3 sm:p-3.5 rounded-2xl transition-all flex-shrink-0 ${
+            className={`p-2 sm:p-2.5 rounded-xl transition-all flex-shrink-0 ${
               isListening
-                ? 'bg-rose-600 text-white animate-pulse shadow-lg ring-4 ring-rose-300'
+                ? 'bg-rose-600 text-white animate-pulse shadow-md ring-2 ring-rose-300'
                 : 'bg-white/20 hover:bg-white/30 text-white'
             }`}
-            title="Ask AI for food suggestions and recipes by voice"
+            title="Ask AI by voice"
           >
-            {isListening ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
+            {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <h4 className="font-extrabold text-base sm:text-lg">AI Healthy Meal Concierge</h4>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+              <button
+                onClick={() => SpeechService.speak(aiVoiceFeedback || 'Ask e.g. "Low-sodium dinner" or "Lentil soup"', profile.voiceSpeed)}
+                className="p-1 rounded-lg hover:bg-white/20 text-emerald-200 hover:text-white transition-colors"
+                title="Listen"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+              </button>
+              <h4 className="font-extrabold text-xs sm:text-sm tracking-tight truncate">Say it in AI</h4>
             </div>
-            <p className="text-xs sm:text-sm text-emerald-100 font-medium mt-0.5">
-              {aiVoiceFeedback || 'Ask e.g. "Suggest a low-sodium dinner", "What can I cook with lentils?", or "Give me a high potassium smoothie"'}
+            <p className="text-[11px] sm:text-xs text-emerald-100 font-medium truncate">
+              {aiVoiceFeedback || 'Ask e.g. "Low-sodium dinner" or "Lentil soup"'}
             </p>
           </div>
         </div>
 
         {/* Quick Voice Chips */}
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
           <button
             onClick={() => handleProcessVoiceCommand('low sodium dinner recipes')}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all whitespace-nowrap"
+            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap"
           >
-            "🍝 Low-Sodium Dinners"
+            "🍝 Low-Sodium"
           </button>
           <button
             onClick={() => handleProcessVoiceCommand('warm vegetable soups and stews')}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all whitespace-nowrap"
+            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap"
           >
-            "🍲 Soups & Stews"
+            "🍲 Soups"
           </button>
           <button
             onClick={() => handleProcessVoiceCommand('potassium blood pressure smoothies')}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all whitespace-nowrap"
+            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap"
           >
-            "🥤 Potassium Booster"
+            "🥤 Smoothies"
           </button>
         </div>
       </div>

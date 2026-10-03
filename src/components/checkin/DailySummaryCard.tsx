@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { CheckInRecord, DailySummary, UserProfile } from '../../types/health';
 import { SpeechService } from '../../services/speechService';
+import { WeatherHealthCard } from '../common/WeatherHealthCard';
 import { 
   CheckCircle2, 
   Sparkles, 
@@ -188,6 +189,9 @@ export const DailySummaryCard: React.FC<DailySummaryCardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Senior Weather & Air Quality Health Advisory */}
+      <WeatherHealthCard />
     </div>
   );
 };

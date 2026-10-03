@@ -413,61 +413,56 @@ export const BayAreaHappenings: React.FC<BayAreaHappeningsProps> = ({ profile })
       </div>
 
       {/* AI Voice Event Concierge Banner */}
-      <div className="bg-gradient-to-r from-amber-900 via-yellow-950 to-orange-950 text-white rounded-3xl p-4 sm:p-6 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="bg-gradient-to-r from-amber-900 via-yellow-950 to-orange-950 text-white rounded-2xl p-3 sm:p-3.5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={handleToggleVoice}
-            className={`p-3 sm:p-3.5 rounded-2xl transition-all flex-shrink-0 ${
+            className={`p-2 sm:p-2.5 rounded-xl transition-all flex-shrink-0 ${
               isListening
-                ? 'bg-rose-600 text-white animate-pulse shadow-lg ring-4 ring-rose-300'
+                ? 'bg-rose-600 text-white animate-pulse shadow-md ring-2 ring-rose-300'
                 : 'bg-white/20 hover:bg-white/30 text-white'
             }`}
-            title="Ask AI about Bay Area events by voice"
+            title="Ask AI by voice"
           >
-            {isListening ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
+            {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <h4 className="font-extrabold text-base sm:text-lg">AI Bay Area Fun & Dining Guide</h4>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+              <button
+                onClick={() => SpeechService.speak(aiVoiceFeedback || 'Ask e.g. "Events this weekend" or "Low-salt dining"', profile.voiceSpeed)}
+                className="p-1 rounded-lg hover:bg-white/20 text-amber-200 hover:text-white transition-colors"
+                title="Listen"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+              </button>
+              <h4 className="font-extrabold text-xs sm:text-sm tracking-tight truncate">Say it in AI</h4>
             </div>
-            <p className="text-xs sm:text-sm text-amber-100 font-medium mt-0.5">
-              {aiVoiceFeedback || 'Ask e.g. "What\'s happening this weekend?", "Show vegetarian restaurants", or "Find outdoor concerts"'}
+            <p className="text-[11px] sm:text-xs text-amber-100 font-medium truncate">
+              {aiVoiceFeedback || 'Ask e.g. "Events this weekend" or "Low-salt dining"'}
             </p>
           </div>
         </div>
 
         {/* Quick Voice Filter Chips */}
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
           <button
             onClick={() => setSelectedCategory('this_week')}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-xs font-black transition-all whitespace-nowrap shadow-sm hover:bg-amber-300"
+            className="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 text-[11px] sm:text-xs font-black transition-all whitespace-nowrap shadow-sm hover:bg-amber-300"
           >
-            "🌟 This Week's Highlights"
+            "🌟 This Week"
           </button>
           <button
             onClick={() => handleProcessVoiceCommand('vegetarian restaurants low sodium non salty')}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500/30 hover:bg-amber-500/40 text-xs font-bold transition-all whitespace-nowrap border border-amber-300/40 text-amber-100"
+            className="px-2.5 py-1 rounded-lg bg-amber-500/30 hover:bg-amber-500/40 text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap border border-amber-300/40 text-amber-100"
           >
-            "🍽️ Veg & Low-Salt Dining"
-          </button>
-          <button
-            onClick={() => handleProcessVoiceCommand('food festivals and wine tasting')}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all whitespace-nowrap"
-          >
-            "🌮 Food Festivals"
+            "🍽️ Low-Salt Dining"
           </button>
           <button
             onClick={() => handleProcessVoiceCommand('free outdoor music and concerts')}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all whitespace-nowrap"
+            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap"
           >
-            "🎵 Music & Jazz"
-          </button>
-          <button
-            onClick={() => handleProcessVoiceCommand('farmers market organic food')}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all whitespace-nowrap"
-          >
-            "🥑 Farmers Markets"
+            "🎵 Music"
           </button>
         </div>
       </div>

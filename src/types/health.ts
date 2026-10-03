@@ -97,6 +97,24 @@ export interface DailySummary {
   disclaimer: string;
 }
 
+export type WellbeingStateCategory = 'thriving' | 'good' | 'okay' | 'below_normal' | 'needs_attention';
+
+export interface WellbeingAvatarState {
+  category: WellbeingStateCategory;
+  score: number; // 0 to 100
+  label: string; // e.g. "Thriving & Energetic"
+  emoji: string; // Dynamic smiley expression
+  bgGradient: string;
+  ringColor: string;
+  statusMessage: string;
+  prolongedBelowNormal: boolean;
+  prolongedDaysCount: number;
+  averageMood: string;
+  averageEnergy: number;
+  averageSleep: number;
+  recommendation: string;
+}
+
 export interface UserProfile {
   name: string;
   age: number;
@@ -109,6 +127,9 @@ export interface UserProfile {
   textScale: 'normal' | 'large' | 'extra-large';
   soundEnabled: boolean;
   voiceSpeed: number; // 0.85 for senior friendly slow, 1.0 normal
+  voicePersona?: string; // 'samantha' | 'alex' | 'daniel' | 'karen' | 'victoria' | 'fred' | 'custom'
+  voiceId?: string; // Specific browser voiceURI or voice name
+  voicePitch?: number; // 0.8 to 1.2
 }
 
 export type ReminderPriority = 'urgent' | 'less_urgent';

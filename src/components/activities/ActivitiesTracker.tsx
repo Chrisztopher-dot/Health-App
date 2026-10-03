@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, ActivityLogEntry, ActivityCategory, ActivityIntensity, TimeOfDay } from '../../types/health';
 import { HealthStorageService } from '../../services/healthStorage';
 import { SpeechService } from '../../services/speechService';
+import { WeatherHealthCard } from '../common/WeatherHealthCard';
 import { 
   Footprints, 
   ChevronLeft, 
@@ -15,7 +16,8 @@ import {
   MicOff, 
   Flame, 
   Trophy, 
-  Smile
+  Smile,
+  Volume2
 } from 'lucide-react';
 
 interface ActivitiesTrackerProps {
@@ -106,8 +108,12 @@ export const ActivitiesTracker: React.FC<ActivitiesTrackerProps> = ({ profile })
 
   // Load activities for selected date
   useEffect(() => {
-    const list = HealthStorageService.getActivityLogsForDate(selectedDate);
-    setActivities(list);
+    try {
+      const list = HealthStorageService.getActivityLogsForDate(selectedDate);
+      setActivities(Array.isArray(list) ? list : []);
+    } catch {
+      setActivities([]);
+    }
   }, [selectedDate]);
 
   const handleDateChange = (daysDelta: number) => {
@@ -274,7 +280,8 @@ export const ActivitiesTracker: React.FC<ActivitiesTrackerProps> = ({ profile })
     );
   };
 
-  const totalMinutes = activities.reduce((acc, a) => acc + a.durationMinutes, 0);
+  const activityList = Array.isArray(activities) ? activities : [];
+  const totalMinutes = activityList.reduce((acc, a) => acc + (a?.durationMinutes || 0), 0);
   const targetMinutes = 30; // standard daily senior exercise goal
   const progressPercent = Math.min(100, Math.round((totalMinutes / targetMinutes) * 100));
 
@@ -289,6 +296,9 @@ export const ActivitiesTracker: React.FC<ActivitiesTrackerProps> = ({ profile })
 
   return (
     <div className="max-w-5xl mx-auto my-3 sm:my-6 space-y-4 sm:space-y-6 animate-fadeIn">
+      {/* Senior Weather & Air Quality Health Advisory */}
+      <WeatherHealthCard />
+
       {/* Top Banner & Date Navigator */}
       <div className="bg-white rounded-3xl border-2 border-slate-200 p-4 sm:p-6 md:p-8 shadow-sm">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-4 sm:pb-6">
@@ -360,43 +370,50 @@ export const ActivitiesTracker: React.FC<ActivitiesTrackerProps> = ({ profile })
       </div>
 
       {/* AI Voice Assistant Quick Action Bar */}
-      <div className="bg-gradient-to-r from-teal-800 to-emerald-900 text-white rounded-3xl p-5 sm:p-6 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="bg-gradient-to-r from-teal-800 to-emerald-900 text-white rounded-2xl p-3 sm:p-3.5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={handleToggleVoice}
-            className={`p-3.5 rounded-2xl transition-all ${
+            className={`p-2 sm:p-2.5 rounded-xl transition-all flex-shrink-0 ${
               isListening
-                ? 'bg-rose-600 text-white animate-pulse shadow-lg ring-4 ring-rose-300'
+                ? 'bg-rose-600 text-white animate-pulse shadow-md ring-2 ring-rose-300'
                 : 'bg-white/20 hover:bg-white/30 text-white'
             }`}
             title="Speak your activity"
           >
-            {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+            {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <h4 className="font-extrabold text-lg">AI Activity Assistant</h4>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+              <button
+                onClick={() => SpeechService.speak(voiceFeedback || 'Say e.g. "45 min walk" or "30 min pickleball"', profile.voiceSpeed)}
+                className="p-1 rounded-lg hover:bg-white/20 text-teal-200 hover:text-white transition-colors"
+                title="Listen"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+              </button>
+              <h4 className="font-extrabold text-xs sm:text-sm tracking-tight truncate">Say it in AI</h4>
             </div>
-            <p className="text-xs sm:text-sm text-teal-100 font-medium mt-0.5">
-              {voiceFeedback || 'Say e.g. "I went for a 45-minute hike" or "Logged 30 minutes of pickleball"'}
+            <p className="text-[11px] sm:text-xs text-teal-100 font-medium truncate">
+              {voiceFeedback || 'Say e.g. "45 min walk" or "30 min pickleball"'}
             </p>
           </div>
         </div>
 
         {/* Quick Voice Chips */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
           <button
             onClick={() => handleProcessVoiceCommand('I went for a 45 minute nature hike')}
-            className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all"
+            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all"
           >
             "45 min Hike 🥾"
           </button>
           <button
             onClick={() => handleProcessVoiceCommand('I spent 40 minutes working on the house')}
-            className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-all"
+            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all"
           >
-            "Working on House 🏡"
+            "Housework 🏡"
           </button>
         </div>
       </div>

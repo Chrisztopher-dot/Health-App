@@ -1,9 +1,201 @@
-import { CheckInRecord, DailySummary, SmartAlert, UserProfile, RetrospectiveQueryResult, ActivityLogEntry } from '../types/health';
+import { 
+  CheckInRecord, 
+  DailySummary, 
+  SmartAlert, 
+  UserProfile, 
+  RetrospectiveQueryResult, 
+  ActivityLogEntry,
+  WellbeingAvatarState,
+  WellbeingStateCategory
+} from '../types/health';
 import { HealthStorageService } from './healthStorage';
 
 export class HealthAnalyticsService {
   public static readonly MEDICAL_DISCLAIMER =
     'This is not medical advice. Contact your healthcare provider if you are concerned.';
+
+  /**
+   * Computes the dynamic avatar state, smiley expression, and wellbeing awareness metrics
+   * based on the user's historical check-ins and recent patterns.
+   */
+  public static evaluateWellbeingAvatarState(
+    history: CheckInRecord[],
+    profile?: UserProfile
+  ): WellbeingAvatarState {
+    if (!history || history.length === 0) {
+      return {
+        category: 'good',
+        score: 80,
+        label: 'Ready for Today',
+        emoji: '😊',
+        bgGradient: 'from-emerald-500 to-teal-500',
+        ringColor: 'border-emerald-400 ring-emerald-400/40',
+        statusMessage: 'Ready for your daily check-in. Have a wonderful day!',
+        prolongedBelowNormal: false,
+        prolongedDaysCount: 0,
+        averageMood: 'good',
+        averageEnergy: 7.5,
+        averageSleep: 7.5,
+        recommendation: 'Complete your daily AI Check-In to keep your health insights fresh.',
+      };
+    }
+
+    const sortedDesc = [...history].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+
+    // Analyze recent 7 check-ins (or all available if fewer)
+    const recentSample = sortedDesc.slice(0, 7);
+
+    // 1. Mood mapping & scoring
+    const moodScoreMap: Record<string, number> = {
+      great: 100,
+      very_good: 95,
+      good: 82,
+      okay: 60,
+      not_great: 35,
+      poor: 15,
+    };
+
+    let totalMoodScore = 0;
+    let totalEnergy = 0;
+    let totalSleep = 0;
+    let totalPain = 0;
+    let medsScore = 0;
+
+    recentSample.forEach((rec) => {
+      const mScore = moodScoreMap[rec.mood] ?? 70;
+      totalMoodScore += mScore;
+      totalEnergy += (rec.energyLevel || 7);
+      totalSleep += (rec.sleepQuality || 7);
+      totalPain += (rec.painLevel || 0);
+
+      if (rec.medicationStatus === 'taken') {
+        medsScore += 100;
+      } else if (rec.medicationStatus === 'not_yet') {
+        medsScore += 60;
+      } else {
+        medsScore += 20;
+      }
+    });
+
+    const sampleCount = recentSample.length;
+    const avgMoodScore = totalMoodScore / sampleCount;
+    const avgEnergy = totalEnergy / sampleCount;
+    const avgSleep = totalSleep / sampleCount;
+    const avgPain = totalPain / sampleCount;
+    const avgMedsScore = medsScore / sampleCount;
+
+    // Convert metrics to 0-100 scale
+    const energyScore = (avgEnergy / 10) * 100;
+    const sleepScore = (avgSleep / 10) * 100;
+    const painScore = Math.max(0, 100 - avgPain * 10);
+
+    // Weighted Overall Wellbeing Index:
+    // Mood: 30%, Energy: 25%, Sleep: 20%, Pain: 15%, Meds Adherence: 10%
+    let compositeScore = Math.round(
+      avgMoodScore * 0.30 +
+      energyScore * 0.25 +
+      sleepScore * 0.20 +
+      painScore * 0.15 +
+      avgMedsScore * 0.10
+    );
+
+    // Check for high BP penalty if recent blood pressure readings are available
+    const recentBp = recentSample.find((r) => r.bloodPressure?.measured && r.bloodPressure.systolic);
+    if (recentBp && profile && recentBp.bloodPressure.systolic) {
+      if (recentBp.bloodPressure.systolic > (profile.targetSystolicMax + 15)) {
+        compositeScore = Math.max(10, compositeScore - 8);
+      }
+    }
+
+    // 2. Check for prolonged below-normal streak
+    let belowNormalStreak = 0;
+    for (const r of sortedDesc) {
+      const isBelow =
+        r.mood === 'poor' ||
+        r.mood === 'not_great' ||
+        (r.energyLevel && r.energyLevel <= 4) ||
+        (r.painLevel && r.painLevel >= 6);
+      if (isBelow) {
+        belowNormalStreak++;
+      } else {
+        break;
+      }
+    }
+
+    const prolongedBelowNormal = belowNormalStreak >= 3;
+
+    // Map most common mood string
+    const latestMood = sortedDesc[0]?.mood || 'good';
+
+    // 3. Determine category, emoji expression, gradients, and gentle awareness advice
+    let category: WellbeingStateCategory;
+    let emoji: string;
+    let label: string;
+    let bgGradient: string;
+    let ringColor: string;
+    let statusMessage: string;
+    let recommendation: string;
+
+    if (prolongedBelowNormal || compositeScore < 38) {
+      category = 'needs_attention';
+      emoji = '🥺';
+      label = 'Needs Rest & Care';
+      bgGradient = 'from-amber-600 via-rose-500 to-rose-600';
+      ringColor = 'border-rose-400 ring-rose-400/60';
+      statusMessage = `Wellbeing has been lower than normal for ${belowNormalStreak || 3} check-ins. Listen to your body and take gentle care.`;
+      recommendation = 'Rest comfortably, drink plenty of fluids, and consider letting a family member or your doctor know how you are feeling.';
+    } else if (compositeScore >= 82) {
+      category = 'thriving';
+      emoji = '😄';
+      label = 'Thriving & Energetic';
+      bgGradient = 'from-emerald-500 to-teal-400';
+      ringColor = 'border-emerald-400 ring-emerald-400/40';
+      statusMessage = 'Vibrant energy, great rest, and stable baseline vitals.';
+      recommendation = 'Fantastic job staying active and consistent with your health routine!';
+    } else if (compositeScore >= 68) {
+      category = 'good';
+      emoji = '😊';
+      label = 'Good & Steady';
+      bgGradient = 'from-teal-500 to-cyan-500';
+      ringColor = 'border-cyan-400 ring-cyan-400/40';
+      statusMessage = 'Balanced vitals, comfortable mood, and steady daily pace.';
+      recommendation = 'Keep enjoying light daily walks and staying well-hydrated today.';
+    } else if (compositeScore >= 50) {
+      category = 'okay';
+      emoji = '🙂';
+      label = 'Balanced & Calm';
+      bgGradient = 'from-sky-500 to-indigo-500';
+      ringColor = 'border-sky-400 ring-sky-400/40';
+      statusMessage = 'Doing okay with normal fluctuations. Take time for pleasant pauses.';
+      recommendation = 'Take brief stretching breaks and relax with some warm herbal tea.';
+    } else {
+      category = 'below_normal';
+      emoji = '🙁';
+      label = 'Subdued / Low Energy';
+      bgGradient = 'from-amber-500 to-orange-500';
+      ringColor = 'border-amber-400 ring-amber-400/40';
+      statusMessage = 'Energy or comfort is lower than your usual baseline today.';
+      recommendation = 'Prioritize gentle rest, reduce physically taxing chores, and take care.';
+    }
+
+    return {
+      category,
+      score: compositeScore,
+      label,
+      emoji,
+      bgGradient,
+      ringColor,
+      statusMessage,
+      prolongedBelowNormal,
+      prolongedDaysCount: belowNormalStreak,
+      averageMood: latestMood,
+      averageEnergy: parseFloat(avgEnergy.toFixed(1)),
+      averageSleep: parseFloat(avgSleep.toFixed(1)),
+      recommendation,
+    };
+  }
 
   private static MOTIVATION_LIST: string[] = [
     'Drink a tall glass of fresh water to keep your body hydrated.',
@@ -141,8 +333,28 @@ export class HealthAnalyticsService {
       }
     }
 
-    // --- 3. Wellness Alert: Poor or Not Great for 5 consecutive days ---
-    if (sorted.length >= 5) {
+    // --- 3. Prolonged Below-Normal Wellbeing Alert ---
+    let belowNormalStreak = 0;
+    for (const r of sorted) {
+      const isBelow = r.mood === 'poor' || r.mood === 'not_great' || r.energyLevel <= 4 || r.painLevel >= 6;
+      if (isBelow) {
+        belowNormalStreak++;
+      } else {
+        break;
+      }
+    }
+
+    if (belowNormalStreak >= 3) {
+      alerts.push({
+        id: 'alert-prolonged-low-wellbeing',
+        type: 'wellness',
+        severity: 'warning',
+        title: 'Wellbeing Notice: Below Normal Baseline',
+        message: `Your energy and wellbeing ratings have been below normal for ${belowNormalStreak} consecutive check-ins. Taking extra rest, staying hydrated, or consulting your doctor is recommended.`,
+        dateTriggered: new Date().toISOString(),
+        dismissed: false,
+      });
+    } else if (sorted.length >= 5) {
       const last5 = sorted.slice(0, 5);
       const poorStreak = last5.every((r) => r.mood === 'poor' || r.mood === 'not_great');
       if (poorStreak) {

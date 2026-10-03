@@ -28,3 +28,9 @@ tsconfig.tsbuildinfo
 .env
 .env.*
 !.env.example
+
+# Local SQLite databases
+server/data/*.sqlite*
+*.sqlite
+*.sqlite3
+*.db

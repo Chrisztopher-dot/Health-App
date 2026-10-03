@@ -19,26 +19,31 @@ import {
   Moon, 
   Scale, 
   TrendingUp, 
-  Sparkles
+  Sparkles,
+  Stethoscope
 } from 'lucide-react';
 import { HealthAnalyticsService } from '../../services/healthAnalytics';
 import { AITimelineQuery } from './AITimelineQuery';
 import { MedicineTracker } from '../medicine/MedicineTracker';
+import { DoctorVisitsManager } from './DoctorVisitsManager';
+import { VitalsAndBpManager } from './VitalsAndBpManager';
 
 interface HealthTimelineProps {
   history: CheckInRecord[];
   profile: UserProfile;
   onUpdateProfile?: (updated: UserProfile) => void;
-  defaultSection?: 'diagram' | 'medicine';
+  onHistoryUpdated?: (updatedHistory: CheckInRecord[]) => void;
+  defaultSection?: 'diagram' | 'medicine' | 'vitals' | 'doctor';
 }
 
 export const HealthTimeline: React.FC<HealthTimelineProps> = ({
   history,
   profile,
   onUpdateProfile,
-  defaultSection = 'diagram',
+  onHistoryUpdated,
+  defaultSection = 'medicine',
 }) => {
-  const [activeSection, setActiveSection] = useState<'diagram' | 'medicine'>(defaultSection);
+  const [activeSection, setActiveSection] = useState<'diagram' | 'medicine' | 'vitals' | 'doctor'>(defaultSection);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | 'all'>('30d');
   const [activeMetric, setActiveMetric] = useState<'bp' | 'energy_sleep' | 'meds' | 'weight'>('bp');
 
@@ -94,39 +99,80 @@ export const HealthTimeline: React.FC<HealthTimelineProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto my-6 space-y-6">
-      {/* Category Sub-Tabs: Health Diagrams & Trends vs Medicine Tracker */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border-2 border-slate-200 p-1.5 sm:p-2 shadow-sm flex items-center justify-center gap-2 max-w-lg mx-auto">
-        <button
-          onClick={() => setActiveSection('diagram')}
-          className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-base transition-all flex items-center justify-center gap-2 ${
-            activeSection === 'diagram'
-              ? 'bg-emerald-700 text-white shadow-md shadow-emerald-200'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-          }`}
-        >
-          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span>Health Diagrams</span>
-        </button>
-
+      {/* Category Sub-Tabs: Medication Schedule vs BP & Pulse Register vs Doctor Care vs Health Diagrams */}
+      <div className="bg-white rounded-2xl sm:rounded-3xl border-2 border-slate-200 p-1.5 sm:p-2 shadow-sm flex items-center justify-center gap-2 max-w-4xl mx-auto flex-wrap sm:flex-nowrap">
         <button
           onClick={() => setActiveSection('medicine')}
-          className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-base transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
             activeSection === 'medicine'
               ? 'bg-emerald-700 text-white shadow-md shadow-emerald-200'
               : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
           }`}
         >
-          <Pill className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
-          <span>Medicine Tracker</span>
+          <Pill className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="truncate">Medication Schedule</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('vitals')}
+          className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+            activeSection === 'vitals'
+              ? 'bg-rose-700 text-white shadow-md shadow-rose-200'
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+          }`}
+        >
+          <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="truncate">BP & Pulse Register</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('doctor')}
+          className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+            activeSection === 'doctor'
+              ? 'bg-blue-700 text-white shadow-md shadow-blue-200'
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+          }`}
+        >
+          <Stethoscope className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="truncate">Doctor & Clinical</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('diagram')}
+          className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+            activeSection === 'diagram'
+              ? 'bg-indigo-700 text-white shadow-md shadow-indigo-200'
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="truncate">Trends & Diagrams</span>
         </button>
       </div>
 
-      {activeSection === 'medicine' ? (
+      {activeSection === 'medicine' && (
         <MedicineTracker
           profile={profile}
           onUpdateProfile={onUpdateProfile || (() => {})}
         />
-      ) : (
+      )}
+
+      {activeSection === 'vitals' && (
+        <VitalsAndBpManager
+          history={history}
+          profile={profile}
+          onVitalsUpdated={onHistoryUpdated}
+        />
+      )}
+
+      {activeSection === 'doctor' && (
+        <DoctorVisitsManager
+          profile={profile}
+          history={history}
+        />
+      )}
+
+      {activeSection === 'diagram' && (
         <div className="space-y-8">
           {/* Top Banner & Time Range Controls */}
           <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 sm:p-8 shadow-sm">
