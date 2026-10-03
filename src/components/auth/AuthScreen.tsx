@@ -141,7 +141,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
             <Heart className="w-8 h-8 fill-white/20 animate-pulse" />
           </div>
           <h1 className="text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            <span>CarePulse Health</span>
+            <span>MyHealthSafe</span>
             <span className="text-xs font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               Senior 2.0
             </span>

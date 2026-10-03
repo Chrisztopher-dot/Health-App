@@ -401,7 +401,7 @@ export class MedicalAIService {
 
     // General fallback linked assistant response
     const generalSpoken = `I have linked access to all your health records, food scanner, blood pressure vitals, medications, and physical activity logs. How can I assist you today?`;
-    const generalWritten = `🤖 **CarePulse AI Assistant**:\nI have live linked access across your entire health profile:\n• 💓 **Blood Pressure & Pulse**: Track vitals, log readings, and view trends.\n• 💊 **Medications**: Check prescriptions, timings, and confirm doses.\n• 🍎 **Food Scanner**: Analyze meals, sodium content, and dining out safety.\n• 🏃 **Physical Activity**: Log walks, hikes, and daily active minutes.\n• 🩺 **Doctor Care**: Review clinical notes and prepare questions.\n\nAsk me anything by voice or typing!`;
+    const generalWritten = `🤖 **MyHealthSafe AI Assistant**:\nI have live linked access across your entire health profile:\n• 💓 **Blood Pressure & Pulse**: Track vitals, log readings, and view trends.\n• 💊 **Medications**: Check prescriptions, timings, and confirm doses.\n• 🍎 **Food Scanner**: Analyze meals, sodium content, and dining out safety.\n• 🏃 **Physical Activity**: Log walks, hikes, and daily active minutes.\n• 🩺 **Doctor Care**: Review clinical notes and prepare questions.\n\nAsk me anything by voice or typing!`;
 
     return {
       answer: generalWritten,

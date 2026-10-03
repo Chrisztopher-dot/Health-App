@@ -88,7 +88,7 @@ export const DynamicWellbeingAvatar: React.FC<DynamicWellbeingAvatarProps> = ({
           <div className="overflow-hidden text-left flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-extrabold text-base tracking-tight text-white font-sans truncate">
-                CarePulse
+                MyHealthSafe
               </span>
               <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700/80 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
