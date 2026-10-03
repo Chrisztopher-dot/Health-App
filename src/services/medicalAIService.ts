@@ -1,4 +1,4 @@
-import { UserProfile, CheckInRecord, SmartAlert, AppTab, ActivityLogEntry } from '../types/health';
+import { UserProfile, CheckInRecord, SmartAlert, AppTab, ActivityLogEntry, ReminderItem } from '../types/health';
 import { HealthStorageService } from './healthStorage';
 import { HealthAnalyticsService } from './healthAnalytics';
 
@@ -13,6 +13,7 @@ export interface MedicalAIResponse {
     tab: AppTab;
   };
   followUpSuggestions: string[];
+  taskItems?: ReminderItem[];
 }
 
 export class MedicalAIService {
@@ -397,6 +398,227 @@ export class MedicalAIService {
           'What medications do I have today?'
         ],
       };
+    }
+
+    // 11. Reminders & Tasks AI Voice/Text Actions (Cross-off, Add, List, Reschedule)
+    const isReminderQuery = 
+      q.includes('reminder') || 
+      q.includes('reminders') || 
+      q.includes('task') || 
+      q.includes('tasks') || 
+      q.includes('to-do') || 
+      q.includes('todo') ||
+      q.includes('cross off') ||
+      q.includes('check off') ||
+      q.includes('mark done') ||
+      q.includes('mark complete') ||
+      q.includes('remind me');
+
+    if (isReminderQuery) {
+      const allReminders = HealthStorageService.getAllReminders();
+
+      // A. Cross-Off / Complete Task Command
+      if (
+        q.includes('cross off') || 
+        q.includes('check off') || 
+        q.includes('mark done') || 
+        q.includes('mark complete') || 
+        q.includes('completed task') ||
+        q.includes('finished task') ||
+        q.includes('tick off') ||
+        q.includes('done with')
+      ) {
+        // Find matching reminder
+        const candidate = allReminders.find((r) => {
+          if (r.completed) return false;
+          const words = r.title.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+          return words.some((w) => q.includes(w));
+        }) || allReminders.find((r) => !r.completed);
+
+        if (candidate) {
+          HealthStorageService.toggleReminder(candidate.id);
+          const updatedList = HealthStorageService.getAllReminders();
+          const targetItem = updatedList.find((r) => r.id === candidate.id) || candidate;
+          
+          const spoken = `I have crossed off "${candidate.title}" from your tasks and marked the box as completed.`;
+          const written = `✅ **Task Crossed Off**: "${candidate.title}"\n• **Status**: [✓] Completed (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})\n• **Category**: ${candidate.priority === 'urgent' ? '🚨 Urgent / Medical' : '📋 Routine / Daily'}`;
+
+          return {
+            answer: written,
+            spokenText: spoken,
+            category: 'reminders',
+            isActionLogged: true,
+            loggedActionDescription: `Crossed off: ${candidate.title}`,
+            suggestedAction: { label: 'Open Reminders & Tasks', tab: 'reminders' },
+            taskItems: [targetItem],
+            followUpSuggestions: [
+              'What other tasks do I have today?',
+              'What is my latest blood pressure?',
+              'What medications do I have today?'
+            ],
+          };
+        } else {
+          const spoken = `You don't have any pending tasks to cross off. All your scheduled reminders are already completed!`;
+          return {
+            answer: `🎉 **All Tasks Completed!**\nYou have 0 pending items in your Reminders & Tasks list.`,
+            spokenText: spoken,
+            category: 'reminders',
+            suggestedAction: { label: 'Open Reminders & Tasks', tab: 'reminders' },
+            followUpSuggestions: [
+              'Add a new reminder',
+              'What is my latest blood pressure?',
+              'Show healthy recipes'
+            ],
+          };
+        }
+      }
+
+      // B. Add New Reminder / Task Command
+      if (
+        q.startsWith('remind me') || 
+        q.startsWith('add reminder') || 
+        q.startsWith('add a reminder') || 
+        q.startsWith('create task') || 
+        q.startsWith('add task') ||
+        q.startsWith('set reminder')
+      ) {
+        let cleanTitle = input
+          .replace(/^(remind me to|add a reminder to|add reminder to|add urgent reminder to|add task to|create task to|create a task for|set reminder for|remember to)\s+/i, '')
+          .replace(/\s*(tomorrow|today|next week|at \d{1,2}(?::\d{2})?\s*(?:am|pm)?)/gi, '')
+          .trim();
+
+        if (!cleanTitle) cleanTitle = 'New task';
+        cleanTitle = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+
+        const isUrgent = [
+          'doctor', 'hospital', 'clinic', 'medication', 'refill', 'pills', 'bp',
+          'blood pressure', 'prescription', 'urgent', 'asap', 'cardiologist'
+        ].some((kw) => q.includes(kw));
+
+        const timeMatch = input.match(/(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.))/i);
+        const dueTime = timeMatch ? timeMatch[1].toUpperCase().replace(/\./g, '') : (q.includes('morning') ? '09:00 AM' : q.includes('afternoon') ? '02:00 PM' : undefined);
+
+        const newItem: ReminderItem = {
+          id: `rem-${Date.now()}`,
+          title: cleanTitle,
+          priority: isUrgent ? 'urgent' : 'less_urgent',
+          dueDate: todayStr,
+          dueTime,
+          completed: false,
+          createdAt: new Date().toISOString(),
+        };
+
+        HealthStorageService.addReminder(newItem);
+
+        const spoken = `Added ${isUrgent ? 'urgent' : 'routine'} reminder: "${cleanTitle}"${dueTime ? ' for ' + dueTime : ''}. You can view and cross it off in Reminders and Tasks.`;
+        const written = `✨ **New Task Registered in Reminders & Tasks**:\n• **Title**: "${cleanTitle}"\n• **Priority Box**: ${isUrgent ? '🚨 Urgent / Medical' : '📋 Routine / Daily'}\n• **Scheduled Time**: ${dueTime || 'Anytime today'}\n• **Status**: [ ] Pending Checkbox`;
+
+        return {
+          answer: written,
+          spokenText: spoken,
+          category: 'reminders',
+          isActionLogged: true,
+          loggedActionDescription: `Added task: ${cleanTitle}`,
+          suggestedAction: { label: 'Open Reminders & Tasks', tab: 'reminders' },
+          taskItems: [newItem],
+          followUpSuggestions: [
+            `Cross off ${cleanTitle}`,
+            'What are my other tasks?',
+            'What is my latest blood pressure?'
+          ],
+        };
+      }
+
+      // C. Voicemail / "Listen to What is There to Do" Audio Briefing & Ranked Task Overview
+      const isVoicemailOrListen = 
+        q.includes('listen') || 
+        q.includes('voicemail') || 
+        q.includes('read to me') || 
+        q.includes('play my tasks') || 
+        q.includes('speak my tasks') || 
+        q.includes('read tasks') ||
+        q.includes('play reminder') ||
+        q.includes('read reminder');
+
+      const onlyUrgent = q.includes('urgent') || q.includes('critical') || q.includes('doctor') || q.includes('medical');
+      const onlyRoutine = (q.includes('routine') || q.includes('chore') || q.includes('daily') || q.includes('less urgent')) && !onlyUrgent;
+
+      const activePending = allReminders.filter((r) => !r.completed);
+      const crossedOff = allReminders.filter((r) => r.completed);
+
+      // Rank pending tasks: Urgent first, then routine
+      let rankedTasks = [...activePending].sort((a, b) => {
+        if (a.priority === 'urgent' && b.priority !== 'urgent') return -1;
+        if (a.priority !== 'urgent' && b.priority === 'urgent') return 1;
+        return 0;
+      });
+
+      if (onlyUrgent) {
+        rankedTasks = rankedTasks.filter((r) => r.priority === 'urgent');
+      } else if (onlyRoutine) {
+        rankedTasks = rankedTasks.filter((r) => r.priority === 'less_urgent');
+      }
+
+      if (isVoicemailOrListen || q.includes('what') || q.includes('show') || q.includes('list')) {
+        if (rankedTasks.length === 0) {
+          const emptySpoken = onlyUrgent 
+            ? 'You have no urgent medical tasks in your queue. All caught up!'
+            : 'You have no pending tasks in your queue. All items have been crossed off!';
+          return {
+            answer: `🎉 **Task Voicemail: All Clear!**\n• No pending ${onlyUrgent ? 'urgent' : ''} tasks found.\n• Total items crossed off: **${crossedOff.length}**`,
+            spokenText: emptySpoken,
+            category: 'reminders',
+            suggestedAction: { label: 'Open Reminders & Tasks', tab: 'reminders' },
+            taskItems: crossedOff.slice(0, 5),
+            followUpSuggestions: [
+              'Add a new reminder',
+              'What is my latest blood pressure?',
+              'What medications do I have today?'
+            ],
+          };
+        }
+
+        // Build true voicemail audio script
+        let voicemailSpoken = `Welcome to your task voicemail speaker. You have ${rankedTasks.length} ${onlyUrgent ? 'urgent ' : onlyRoutine ? 'routine ' : ''}tasks in your queue, ranked by urgency. `;
+        rankedTasks.forEach((t, index) => {
+          const num = index + 1;
+          const urgencyLabel = t.priority === 'urgent' ? 'Urgent priority.' : 'Routine.';
+          const duePart = t.dueTime ? ` Due at ${t.dueTime}.` : '';
+          const notesPart = t.notes ? ` Notes: ${t.notes}.` : '';
+          voicemailSpoken += `Message ${num}: ${urgencyLabel} ${t.title}.${duePart}${notesPart} `;
+        });
+        voicemailSpoken += 'End of task voicemail. You can say cross off any task or tap its box to complete it.';
+
+        let written = `📼 **Task Voicemail Speaker Briefing** (${rankedTasks.length} Ranked Items):\n\n`;
+        rankedTasks.forEach((t, index) => {
+          const num = index + 1;
+          const badge = t.priority === 'urgent' ? '🚨 [URGENT]' : '📋 [ROUTINE]';
+          written += `**Message ${num}** ${badge}: **${t.title}**\n`;
+          if (t.dueTime || t.dueDate) written += `• ⏰ Schedule: ${t.dueTime || ''} ${t.dueDate ? `(${t.dueDate})` : ''}\n`;
+          if (t.notes) written += `• 📝 Notes: ${t.notes}\n`;
+          written += `\n`;
+        });
+
+        if (crossedOff.length > 0) {
+          written += `✅ **Crossed Off / Completed Items (${crossedOff.length})**:\n`;
+          crossedOff.slice(0, 3).forEach((t) => {
+            written += `• [✓] ~~${t.title}~~\n`;
+          });
+        }
+
+        return {
+          answer: written,
+          spokenText: voicemailSpoken,
+          category: 'reminders',
+          suggestedAction: { label: 'Open Reminders & Tasks Studio', tab: 'reminders' },
+          taskItems: rankedTasks,
+          followUpSuggestions: [
+            `Cross off ${rankedTasks[0].title.split(' ')[0]}`,
+            onlyUrgent ? 'Play routine tasks' : 'Play most urgent tasks',
+            'What is my latest blood pressure?'
+          ],
+        };
+      }
     }
 
     // General fallback linked assistant response

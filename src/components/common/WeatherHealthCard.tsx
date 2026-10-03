@@ -48,12 +48,12 @@ export const WeatherHealthCard: React.FC<WeatherHealthCardProps> = ({ className 
 
   if (loading && !advisory) {
     return (
-      <div className="bg-white rounded-2xl p-5 border border-blue-100 shadow-sm animate-pulse flex items-center justify-between">
+      <div className="bg-slate-900/90 rounded-2xl p-5 border border-slate-800 shadow-xl animate-pulse flex items-center justify-between text-white">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-blue-100 rounded-xl"></div>
+          <div className="w-10 h-10 bg-slate-800 rounded-xl"></div>
           <div>
-            <div className="h-4 bg-slate-200 rounded w-32 mb-2"></div>
-            <div className="h-3 bg-slate-100 rounded w-48"></div>
+            <div className="h-4 bg-slate-750 rounded w-32 mb-2"></div>
+            <div className="h-3 bg-slate-800 rounded w-48"></div>
           </div>
         </div>
       </div>
@@ -76,26 +76,26 @@ export const WeatherHealthCard: React.FC<WeatherHealthCardProps> = ({ className 
   const bestRecommendation = advisory.bestActivityWindow?.recommendation || 'Comfortable conditions for daily walking.';
 
   return (
-    <div className={`bg-gradient-to-br from-blue-50/80 via-white to-sky-50/50 rounded-2xl p-5 border border-blue-100/80 shadow-sm relative overflow-hidden transition-all duration-300 ${className}`}>
+    <div className={`bg-slate-900/90 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-xl backdrop-blur-md relative overflow-hidden transition-all duration-300 text-white ${className}`}>
       {/* Decorative top accent */}
-      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 via-sky-400 to-teal-400"></div>
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-emerald-400 to-teal-400"></div>
 
       {/* Header Row */}
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <div className="flex items-center space-x-2">
-          <div className="p-2 bg-blue-600 text-white rounded-xl shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex items-center space-x-3">
+          <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded-2xl shadow-sm">
             <CloudSun className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center space-x-1.5">
-              <h3 className="font-bold text-slate-800 text-base md:text-lg">Weather & Air Quality Health Advisory</h3>
-              <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                Live
+            <div className="flex items-center space-x-2">
+              <h3 className="font-black text-white text-base md:text-lg">Weather & Air Quality Advisory</h3>
+              <span className="px-2 py-0.5 text-[10px] font-black uppercase rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                Live AI
               </span>
             </div>
-            <p className="text-xs text-slate-500 flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-blue-500" />
-              {locationCity}
+            <p className="text-xs text-slate-400 flex items-center gap-1 font-semibold mt-0.5">
+              <MapPin className="w-3 h-3 text-cyan-400" />
+              <span>{locationCity}</span>
             </p>
           </div>
         </div>
@@ -104,10 +104,10 @@ export const WeatherHealthCard: React.FC<WeatherHealthCardProps> = ({ className 
           {/* Readout button */}
           <button
             onClick={handleSpeakAdvisory}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
               isSpeaking
-                ? 'bg-amber-500 text-white shadow-md ring-2 ring-amber-300 animate-pulse'
-                : 'bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
+                ? 'bg-rose-600 text-white shadow-md animate-pulse'
+                : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 shadow-sm'
             }`}
             title="Listen to advisory"
           >
@@ -119,7 +119,7 @@ export const WeatherHealthCard: React.FC<WeatherHealthCardProps> = ({ className 
           <button
             onClick={loadWeather}
             disabled={loading}
-            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-200"
+            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors border border-slate-800 cursor-pointer"
             title="Refresh weather"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -128,97 +128,98 @@ export const WeatherHealthCard: React.FC<WeatherHealthCardProps> = ({ className 
       </div>
 
       {/* Weather & AQI Metrics Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white/90 backdrop-blur-sm p-3.5 rounded-xl border border-blue-100/60 shadow-xs mb-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950/70 p-4 rounded-2xl border border-slate-800 shadow-inner mb-4">
         {/* Temperature */}
         <div className="flex items-center space-x-3">
           <div className="text-3xl select-none">{weatherEmoji}</div>
           <div>
-            <div className="text-2xl font-black text-slate-800 tracking-tight">
-              {currentTemp}°<span className="text-sm font-medium text-slate-500">F</span>
+            <div className="text-2xl font-black text-white tracking-tight">
+              {currentTemp}°<span className="text-sm font-medium text-slate-400">F</span>
             </div>
-            <div className="text-xs font-medium text-slate-600 truncate">
+            <div className="text-xs font-semibold text-slate-300 truncate">
               {currentCondition}
             </div>
           </div>
         </div>
 
         {/* Air Quality (AQI) */}
-        <div className="flex items-center space-x-2.5 border-l border-slate-100 pl-3">
+        <div className="flex items-center space-x-2.5 border-l border-slate-800/80 pl-3">
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-xs"
+            className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-slate-950 text-sm shadow-md"
             style={{ backgroundColor: airQualityColor }}
           >
             {airQualityAqi}
           </div>
           <div>
-            <div className="text-xs font-bold text-slate-700">Air Quality</div>
+            <div className="text-xs font-bold text-slate-400">Air Quality</div>
             <div
-              className="text-xs font-semibold capitalize"
+              className="text-xs font-black capitalize"
               style={{ color: airQualityColor }}
             >
-              {airQualityCategory === 'good' ? 'Clean Air' : airQualityCategory}
+              {airQualityCategory === 'good' ? 'Clean Air (Good)' : airQualityCategory}
             </div>
           </div>
         </div>
 
-        {/* Humidity & UV */}
-        <div className="flex items-center space-x-2.5 border-l border-slate-100 pl-3">
-          <div className="p-2 bg-sky-50 text-sky-600 rounded-lg">
+        {/* Humidity */}
+        <div className="flex items-center space-x-2.5 border-l border-slate-800/80 pl-3">
+          <div className="p-2 bg-slate-900 border border-slate-800 text-cyan-400 rounded-xl">
             <Droplets className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-xs font-bold text-slate-700">Humidity</div>
-            <div className="text-xs font-semibold text-slate-600">{humidityVal}%</div>
+            <div className="text-xs font-bold text-slate-400">Humidity</div>
+            <div className="text-xs font-black text-white">{humidityVal}%</div>
           </div>
         </div>
 
         {/* Wind & UV */}
-        <div className="flex items-center space-x-2.5 border-l border-slate-100 pl-3">
-          <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+        <div className="flex items-center space-x-2.5 border-l border-slate-800/80 pl-3">
+          <div className="p-2 bg-slate-900 border border-slate-800 text-amber-400 rounded-xl">
             <Sun className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-xs font-bold text-slate-700">UV Index</div>
-            <div className="text-xs font-semibold text-slate-600">{uvIndexVal} (Moderate)</div>
+            <div className="text-xs font-bold text-slate-400">UV Index</div>
+            <div className="text-xs font-black text-white">{uvIndexVal} (Moderate)</div>
           </div>
         </div>
       </div>
 
       {/* Senior Clinical Advisories */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {seniorAdvisoriesList.map((item: any, idx: number) => (
           <div
             key={idx}
-            className={`p-3 rounded-xl border flex items-start space-x-2.5 ${
+            className={`p-3.5 rounded-2xl border flex items-start space-x-3 ${
               item.level === 'warning'
-                ? 'bg-red-50/80 border-red-200 text-red-900'
+                ? 'bg-rose-950/30 border-rose-500/40 text-rose-200'
                 : item.level === 'caution'
-                ? 'bg-amber-50/80 border-amber-200 text-amber-900'
-                : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                ? 'bg-amber-950/30 border-amber-500/40 text-amber-200'
+                : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
             }`}
           >
             <span className="text-xl shrink-0 mt-0.5 select-none">{item.emoji || '🌿'}</span>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold flex items-center gap-1.5">
-                {item.title}
-                {item.level === 'warning' && <AlertTriangle className="w-3.5 h-3.5 text-red-600" />}
-                {item.level === 'info' && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />}
+              <div className="text-xs font-black flex items-center gap-1.5 text-white">
+                <span>{item.title}</span>
+                {item.level === 'warning' && <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />}
+                {item.level === 'info' && <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />}
               </div>
-              <p className="text-xs text-slate-700 mt-0.5 leading-relaxed">{item.advice}</p>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed font-medium">{item.advice}</p>
             </div>
           </div>
         ))}
 
         {/* Recommended Walking Window */}
-        <div className="p-3 bg-indigo-50/80 border border-indigo-100 rounded-xl flex items-start space-x-2.5">
-          <div className="p-1.5 bg-indigo-600 text-white rounded-lg mt-0.5">
-            <Clock className="w-3.5 h-3.5" />
+        <div className="p-3.5 bg-indigo-950/30 border border-indigo-500/40 rounded-2xl flex items-start space-x-3">
+          <div className="p-1.5 bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 rounded-xl mt-0.5">
+            <Clock className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
-              Best Outdoor Walking Window: <span className="text-indigo-700 font-extrabold">{bestTimeRange}</span>
+            <div className="text-xs font-black text-white flex items-center gap-1.5">
+              <span>Best Outdoor Walking Window:</span>
+              <span className="text-indigo-300 font-extrabold">{bestTimeRange}</span>
             </div>
-            <p className="text-xs text-indigo-900/80 mt-0.5 leading-relaxed">
+            <p className="text-xs text-slate-300 mt-1 leading-relaxed font-medium">
               {bestRecommendation}
             </p>
           </div>

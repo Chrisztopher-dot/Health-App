@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, CheckInRecord, AppTab } from '../../types/health';
+import { UserProfile, CheckInRecord, AppTab, ReminderItem } from '../../types/health';
 import { SpeechService, CURATED_VOICE_PERSONAS } from '../../services/speechService';
 import { MedicalAIService, MedicalAIResponse } from '../../services/medicalAIService';
+import { HealthStorageService } from '../../services/healthStorage';
 import { 
   Bot, 
   Mic, 
@@ -16,7 +17,9 @@ import {
   Footprints, 
   ShieldCheck, 
   ArrowRight, 
-  AlertTriangle
+  AlertTriangle,
+  Clock,
+  ListTodo
 } from 'lucide-react';
 
 interface VoiceOrTextAssistantProps {
@@ -38,9 +41,30 @@ interface ChatMessage {
     description?: string;
   }[];
   category?: string;
+  taskItems?: ReminderItem[];
 }
 
 const QUICK_PROMPTS = [
+  {
+    label: '📼 Listen to Tasks (Voicemail)',
+    query: 'Listen to what is there to do in my tasks',
+  },
+  {
+    label: '🚨 Play Urgent Reminders',
+    query: 'Play my most urgent reminders and tasks',
+  },
+  {
+    label: '📋 My Reminders & Tasks',
+    query: 'What are my reminders and tasks for today?',
+  },
+  {
+    label: '✅ Cross Off Tasks',
+    query: 'Cross off my first pending reminder task',
+  },
+  {
+    label: '➕ Add Doctor Reminder',
+    query: 'Remind me to call cardiologist tomorrow 10 AM',
+  },
   {
     label: '🥗 Food & Sodium Safety',
     query: 'How does my diet and sodium look, and how can the Food Scanner help me?',
@@ -236,6 +260,7 @@ export const VoiceOrTextAssistant: React.FC<VoiceOrTextAssistantProps> = ({
           spokenAudioText: aiResponse.spokenText,
           actionSuggestions,
           category: aiResponse.category,
+          taskItems: aiResponse.taskItems,
         };
 
         setMessages((prev) => [...prev, assistantMsg]);
@@ -267,6 +292,34 @@ export const VoiceOrTextAssistant: React.FC<VoiceOrTextAssistantProps> = ({
       };
       setMessages((prev) => [...prev, errorMsg]);
       setIsProcessing(false);
+    }
+  };
+
+  const handleToggleTaskInChat = (taskId: string, title: string, currentCompleted: boolean) => {
+    HealthStorageService.toggleReminder(taskId);
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.taskItems) {
+          return {
+            ...m,
+            taskItems: m.taskItems.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    completed: !currentCompleted,
+                    completedAt: !currentCompleted ? new Date().toISOString() : undefined,
+                  }
+                : t
+            ),
+          };
+        }
+        return m;
+      })
+    );
+
+    const action = !currentCompleted ? 'Crossed off' : 'Reopened';
+    if (!voiceMuted) {
+      SpeechService.speak(`${action}: ${title}`, selectedSpeed, undefined, selectedPersona);
     }
   };
 
@@ -465,6 +518,87 @@ export const VoiceOrTextAssistant: React.FC<VoiceOrTextAssistantProps> = ({
                   <div className="text-sm font-medium leading-relaxed whitespace-pre-line">
                     {msg.text}
                   </div>
+
+                  {/* Interactive Tasks & Reminders Checklist with Checkboxes */}
+                  {msg.taskItems && msg.taskItems.length > 0 && (
+                    <div className="pt-3 border-t border-slate-700/60 mt-2 space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-indigo-300">
+                        <span className="flex items-center gap-1.5">
+                          <ListTodo className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Interactive Task Checklist (Tap Box to Cross Off):</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-normal">
+                          {msg.taskItems.filter((t) => t.completed).length}/{msg.taskItems.length} Done
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {msg.taskItems.map((task) => (
+                          <div
+                            key={task.id}
+                            className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                              task.completed
+                                ? 'bg-slate-950/60 border-slate-800 opacity-60'
+                                : task.priority === 'urgent'
+                                ? 'bg-rose-950/30 border-rose-500/40 hover:border-rose-400 shadow-sm'
+                                : 'bg-slate-900/90 border-slate-700 hover:border-indigo-400 shadow-sm'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              {/* Prominent Checkbox Box */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleTaskInChat(task.id, task.title, task.completed)}
+                                className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center font-black text-sm transition-all active:scale-90 flex-shrink-0 ${
+                                  task.completed
+                                    ? 'bg-emerald-600 border-emerald-500 text-white shadow-sm'
+                                    : task.priority === 'urgent'
+                                    ? 'border-rose-500 bg-slate-900 hover:bg-rose-950/50 text-transparent'
+                                    : 'border-indigo-400 bg-slate-900 hover:bg-indigo-950/50 text-transparent'
+                                }`}
+                                title={task.completed ? 'Click to uncross / reopen' : 'Click box to cross off task'}
+                              >
+                                {task.completed ? '✓' : ''}
+                              </button>
+
+                              <div className="min-w-0">
+                                <span className={`text-xs sm:text-sm font-bold block truncate ${
+                                  task.completed ? 'text-slate-400 line-through' : 'text-white'
+                                }`}>
+                                  {task.title}
+                                </span>
+                                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
+                                  <span className={`px-1.5 py-0.5 rounded font-black uppercase text-[9px] ${
+                                    task.priority === 'urgent' ? 'bg-rose-500/20 text-rose-300' : 'bg-indigo-500/20 text-indigo-300'
+                                  }`}>
+                                    {task.priority === 'urgent' ? 'Urgent' : 'Routine'}
+                                  </span>
+                                  {task.dueTime && (
+                                    <span className="flex items-center gap-0.5 text-amber-300 font-semibold">
+                                      <Clock className="w-2.5 h-2.5" /> {task.dueTime}
+                                    </span>
+                                  )}
+                                  {task.completed && (
+                                    <span className="text-emerald-400 font-bold">
+                                      ✓ Crossed Off
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => onNavigateTab('reminders')}
+                              className="text-[10px] font-bold text-slate-400 hover:text-indigo-300 px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
+                            >
+                              Manage &rarr;
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Deep link action suggestions */}
                   {msg.actionSuggestions && msg.actionSuggestions.length > 0 && (

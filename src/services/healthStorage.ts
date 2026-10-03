@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   BAY_AREA_EVENTS: 'health_app_bay_area_events_v1',
   BAY_AREA_LAST_WEEK_SYNC: 'health_app_bay_area_week_sync_v1',
   RECIPES: 'health_app_recipes_v1',
+  RECIPES_LAST_WEEK_SYNC: 'health_app_recipes_week_sync_v1',
 };
 
 export const DEFAULT_MEDICATIONS: MedicationItem[] = [
@@ -233,6 +234,24 @@ export class HealthStorageService {
     return [...existing];
   }
 
+  public static deleteBloodPressureReading(date: string): CheckInRecord[] {
+    const existing = this.getCheckIns();
+    const index = existing.findIndex((r) => r.date === date);
+    if (index >= 0) {
+      existing[index] = {
+        ...existing[index],
+        bloodPressure: {
+          measured: false,
+          systolic: undefined,
+          diastolic: undefined,
+          pulse: undefined,
+        },
+      };
+      this.saveCheckIns(existing);
+    }
+    return [...existing];
+  }
+
   // --- Medication Log Management ---
 
   public static getAllMedicationLogs(): Record<string, MedicationLogEntry[]> {
@@ -276,17 +295,12 @@ export class HealthStorageService {
 
   public static getMedicationLogsForDate(date: string): MedicationLogEntry[] {
     const all = this.getAllMedicationLogs();
-    if (all[date] && all[date].length > 0) {
-      return all[date];
-    }
-
-    // If no log exists yet for this date, initialize from active profile medications
     const profile = this.getProfile();
+    const activeMeds = profile.medications.filter((m) => m.active !== false);
     const isPast = new Date(date) < new Date(new Date().toISOString().split('T')[0]);
 
-    const initialForDate: MedicationLogEntry[] = profile.medications
-      .filter((m) => m.active !== false)
-      .map((med) => ({
+    if (!all[date] || all[date].length === 0) {
+      const initialForDate: MedicationLogEntry[] = activeMeds.map((med) => ({
         id: `log-${date}-${med.id}`,
         date,
         medicationId: med.id,
@@ -297,9 +311,54 @@ export class HealthStorageService {
         takenTime: isPast ? (med.timeOfDay === 'morning' ? '08:15 AM' : med.timeOfDay === 'afternoon' ? '01:00 PM' : '07:30 PM') : undefined,
       }));
 
-    all[date] = initialForDate;
-    this.saveAllMedicationLogs(all);
-    return initialForDate;
+      all[date] = initialForDate;
+      this.saveAllMedicationLogs(all);
+      return initialForDate;
+    }
+
+    // Reconcile existing logs with profile: keep only active profile meds and add missing ones
+    const existingDateLogs = all[date];
+    const reconciled: MedicationLogEntry[] = [];
+    let hasChanged = false;
+
+    activeMeds.forEach((med) => {
+      const existingEntry = existingDateLogs.find((l) => l.medicationId === med.id);
+      if (existingEntry) {
+        if (
+          existingEntry.medicationName !== med.name ||
+          existingEntry.dosage !== med.dosage ||
+          existingEntry.timeOfDay !== med.timeOfDay
+        ) {
+          hasChanged = true;
+          reconciled.push({
+            ...existingEntry,
+            medicationName: med.name,
+            dosage: med.dosage,
+            timeOfDay: med.timeOfDay,
+          });
+        } else {
+          reconciled.push(existingEntry);
+        }
+      } else {
+        hasChanged = true;
+        reconciled.push({
+          id: `log-${date}-${med.id}`,
+          date,
+          medicationId: med.id,
+          medicationName: med.name,
+          dosage: med.dosage,
+          timeOfDay: med.timeOfDay,
+          status: isPast ? 'taken' : 'pending',
+        });
+      }
+    });
+
+    if (existingDateLogs.length !== reconciled.length || hasChanged) {
+      all[date] = reconciled;
+      this.saveAllMedicationLogs(all);
+    }
+
+    return reconciled;
   }
 
   public static updateMedicationLogStatus(
@@ -355,20 +414,43 @@ export class HealthStorageService {
     const updatedMeds = [...profile.medications, med];
     this.saveProfile({ ...profile, medications: updatedMeds });
 
-    // Also add to today's log
-    const today = new Date().toISOString().split('T')[0];
-    const todayLogs = this.getMedicationLogsForDate(today);
-    todayLogs.push({
-      id: `log-${today}-${med.id}`,
-      date: today,
-      medicationId: med.id,
-      medicationName: med.name,
-      dosage: med.dosage,
-      timeOfDay: med.timeOfDay,
-      status: 'pending',
-    });
+    // Invalidate and sync date logs
     const all = this.getAllMedicationLogs();
-    all[today] = todayLogs;
+    Object.keys(all).forEach((d) => {
+      if (!all[d].some((l) => l.medicationId === med.id)) {
+        all[d].push({
+          id: `log-${d}-${med.id}`,
+          date: d,
+          medicationId: med.id,
+          medicationName: med.name,
+          dosage: med.dosage,
+          timeOfDay: med.timeOfDay,
+          status: 'pending',
+        });
+      }
+    });
+    this.saveAllMedicationLogs(all);
+  }
+
+  public static updateMedicationInProfile(med: MedicationItem): void {
+    const profile = this.getProfile();
+    const updatedMeds = profile.medications.map((m) => (m.id === med.id ? med : m));
+    this.saveProfile({ ...profile, medications: updatedMeds });
+
+    const all = this.getAllMedicationLogs();
+    Object.keys(all).forEach((d) => {
+      all[d] = all[d].map((l) => {
+        if (l.medicationId === med.id) {
+          return {
+            ...l,
+            medicationName: med.name,
+            dosage: med.dosage,
+            timeOfDay: med.timeOfDay,
+          };
+        }
+        return l;
+      });
+    });
     this.saveAllMedicationLogs(all);
   }
 
@@ -376,6 +458,13 @@ export class HealthStorageService {
     const profile = this.getProfile();
     const updatedMeds = profile.medications.filter((m) => m.id !== medId);
     this.saveProfile({ ...profile, medications: updatedMeds });
+
+    // Clean up from all date logs
+    const all = this.getAllMedicationLogs();
+    Object.keys(all).forEach((d) => {
+      all[d] = all[d].filter((l) => l.medicationId !== medId);
+    });
+    this.saveAllMedicationLogs(all);
   }
 
   // --- Physical Activity Log Management ---

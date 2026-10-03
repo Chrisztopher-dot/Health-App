@@ -3,13 +3,9 @@ import {
   CheckInRecord, 
   HealthMood, 
   MedicationStatus, 
-  UserProfile,
-  ReminderItem,
-  ReminderPriority
+  UserProfile 
 } from '../../types/health';
-import { HealthStorageService } from '../../services/healthStorage';
 import { SpeechService, CURATED_VOICE_PERSONAS } from '../../services/speechService';
-import { MedicalAIService } from '../../services/medicalAIService';
 import { 
   Mic, 
   MicOff, 
@@ -21,7 +17,8 @@ import {
   Heart,
   Activity,
   Pill,
-  Stethoscope
+  Moon,
+  Flame
 } from 'lucide-react';
 
 interface ConversationalCheckInProps {
@@ -66,7 +63,6 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState<string>('');
   const [isListening, setIsListening] = useState<boolean>(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<'chat' | 'record'>('chat');
 
   // Extracted Record State
@@ -94,7 +90,8 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
 
   // Initial greeting
   useEffect(() => {
-    const initialGreeting = `Good morning, ${profile.name.split(' ')[0]}! I am here to help with today's quick health check-in. How are you feeling today?`;
+    const userFirst = profile.name ? profile.name.trim().split(' ')[0] : 'friend';
+    const initialGreeting = `Good day, ${userFirst}! I am your AI Health Assistant. Let's do your quick daily check-in. How are you feeling overall today?`;
     
     setMessages([
       {
@@ -102,7 +99,7 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
         sender: 'ai',
         text: initialGreeting,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        suggestions: ['😀 Very Good', '🙂 Good', '😐 Okay', '🙁 Not Great', '☹ Poor'],
+        suggestions: ['😀 Feeling Great', '🙂 Good & Relaxed', '😐 Doing Okay', '🙁 Not Great', '☹ Feeling Unwell'],
       },
     ]);
 
@@ -110,6 +107,7 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
       SpeechService.speak(initialGreeting, profile.voiceSpeed);
     }
   }, []);
+
   const activePersona = CURATED_VOICE_PERSONAS.find((p) => p.id === currentPersonaId) || CURATED_VOICE_PERSONAS[0];
 
   const speakText = (text: string) => {
@@ -121,177 +119,106 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
     if (onUpdateVoicePersona) {
       onUpdateVoicePersona(personaId);
     }
-    const chosen = CURATED_VOICE_PERSONAS.find((p) => p.id === personaId) || CURATED_VOICE_PERSONAS[0];
-    if (profile.soundEnabled) {
-      SpeechService.speak(`Voice changed to ${chosen.name}`, currentSpeed, undefined, chosen.id, chosen.defaultPitch);
+    const found = CURATED_VOICE_PERSONAS.find((p) => p.id === personaId);
+    if (found && profile.soundEnabled) {
+      SpeechService.speak(`Hello, I am ${found.name}. Voice ready!`, currentSpeed, undefined, found.id, found.defaultPitch);
     }
   };
 
-  const handleSpeedChange = (newSpeed: number) => {
-    setCurrentSpeed(newSpeed);
+  const handleSpeedChange = (speed: number) => {
+    setCurrentSpeed(speed);
     if (onUpdateVoiceSpeed) {
-      onUpdateVoiceSpeed(newSpeed);
-    }
-    if (profile.soundEnabled) {
-      SpeechService.speak(`Talking speed set to ${newSpeed}x`, newSpeed);
+      onUpdateVoiceSpeed(speed);
     }
   };
 
   const handleSendMessage = (textToSend?: string) => {
-    const content = (textToSend || inputText).trim();
-    if (!content) return;
+    const userText = textToSend || inputText;
+    if (!userText.trim()) return;
 
     // Add user message
     const userMsg: Message = {
       id: `user-${Date.now()}`,
       sender: 'user',
-      text: content,
+      text: userText.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+    const currentHistory = [...messages, userMsg];
+    setMessages(currentHistory);
     setInputText('');
 
-    // Progress conversational stage & extract info
-    processUserInput(content, stage, newMessages);
+    // State machine logic
+    processStageResponse(userText.trim(), stage, currentHistory);
   };
 
-  const processUserInput = (
-    userText: string,
-    currentStage: ConversationalStage,
-    currentHistory: Message[]
-  ) => {
+  const processStageResponse = (userText: string, currentStage: ConversationalStage, currentHistory: Message[]) => {
     const lower = userText.toLowerCase();
-    let nextStage: ConversationalStage = currentStage;
+    let nextStage: ConversationalStage = 'energy';
     let aiResponse = '';
     let suggestions: string[] = [];
-    let reminderNote = '';
-
-    // Check if user requested to add a reminder or asked about reminders
-    if (lower.includes('remind me to') || lower.includes('add a reminder') || lower.includes('add reminder') || lower.includes("don't let me forget") || lower.includes('remember to')) {
-      let detectedPriority: ReminderPriority = 'less_urgent';
-      const isUrgentKeywords = [
-        'urgent', 'doctor', 'physician', 'hospital', 'appointment', 'emergency',
-        'prescription', 'refill', 'medication', 'pills', 'medicine', 'blood pressure',
-        'critical', 'important', 'test', 'dentist', 'clinic', 'asap'
-      ];
-      if (isUrgentKeywords.some((kw) => lower.includes(kw))) {
-        detectedPriority = 'urgent';
-      }
-
-      let cleanTitle = userText
-        .replace(/^(remind me to|add a reminder to|add reminder to|add urgent reminder to|add less urgent reminder to|don't let me forget to|please remind me to|set reminder for|remember to)\s+/i, '')
-        .replace(/\s*\((urgent|less urgent)\)$/i, '')
-        .trim();
-
-      if (cleanTitle) {
-        cleanTitle = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
-        const todayStr = new Date().toISOString().split('T')[0];
-        const newRem: ReminderItem = {
-          id: `rem-conv-${Date.now()}`,
-          title: cleanTitle,
-          priority: detectedPriority,
-          dueDate: todayStr,
-          completed: false,
-          createdAt: new Date().toISOString(),
-        };
-        HealthStorageService.addReminder(newRem);
-        reminderNote = `(I also added a ${detectedPriority === 'urgent' ? '🚨 Urgent' : '📝 Less Urgent'} reminder: "${cleanTitle}" to your Reminders list!) `;
-      }
-    }
-
-    // Check if user asked about Bay Area events or festivals
-    if (lower.includes('happenings') || lower.includes('bay area fun') || lower.includes('food festival') || lower.includes('bay area events') || lower.includes('things to do in sf') || lower.includes('pumpkin festival')) {
-      reminderNote += `(By the way, check the "Bay Area Fun" tab for upcoming events like the Ghirardelli Chocolate Festival, Ferry Plaza Market, and Half Moon Bay Pumpkin Fair!) `;
-    }
-
-    // 1. Check for Linked Medical Information Queries or Commands (e.g. BP, meds, doctor visits, alerts, targets)
-    const medicalAIResult = MedicalAIService.processMedicalQuery(userText, profile);
-    if (medicalAIResult) {
-      if (medicalAIResult.isActionLogged) {
-        if (medicalAIResult.category === 'blood_pressure') {
-          const bpMatch = lower.match(/(\d{2,3})\s*(?:\/|over|\s)\s*(\d{2,3})/);
-          if (bpMatch) {
-            const sys = parseInt(bpMatch[1], 10);
-            const dia = parseInt(bpMatch[2], 10);
-            setExtractedRecord((prev) => ({
-              ...prev,
-              bloodPressure: { measured: true, systolic: sys, diastolic: dia, pulse: 72 },
-            }));
-          }
-        } else if (medicalAIResult.category === 'medication') {
-          setExtractedRecord((prev) => ({
-            ...prev,
-            medicationStatus: 'taken',
-          }));
-        }
-      }
-
-      setTimeout(() => {
-        const finalResponse = reminderNote ? `${reminderNote}\n\n${medicalAIResult.answer}` : medicalAIResult.answer;
-        const aiMsg: Message = {
-          id: `ai-${Date.now()}`,
-          sender: 'ai',
-          text: finalResponse,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          suggestions: medicalAIResult.followUpSuggestions,
-        };
-        setMessages([...currentHistory, aiMsg]);
-        if (profile.soundEnabled) {
-          speakText(medicalAIResult.spokenText);
-        }
-      }, 350);
-      return;
-    }
 
     if (currentStage === 'greeting_mood') {
-      let detectedMood: HealthMood = 'good';
-      if (lower.includes('very good') || lower.includes('great') || lower.includes('wonderful') || lower.includes('excellent')) {
-        detectedMood = 'very_good';
-      } else if (lower.includes('poor') || lower.includes('terrible') || lower.includes('bad') || lower.includes('awful')) {
-        detectedMood = 'poor';
-      } else if (lower.includes('not great') || lower.includes('unwell') || lower.includes('sick')) {
-        detectedMood = 'not_great';
-      } else if (lower.includes('okay') || lower.includes('fine') || lower.includes('so-so') || lower.includes('tired')) {
-        detectedMood = 'okay';
+      let mood: HealthMood = 'good';
+      if (lower.includes('great') || lower.includes('very good') || lower.includes('fantastic') || lower.includes('wonderful')) {
+        mood = 'very_good';
+      } else if (lower.includes('okay') || lower.includes('fair') || lower.includes('alright') || lower.includes('so so')) {
+        mood = 'okay';
+      } else if (lower.includes('not great') || lower.includes('bad')) {
+        mood = 'not_great';
+      } else if (lower.includes('poor') || lower.includes('unwell') || lower.includes('terrible') || lower.includes('awful')) {
+        mood = 'poor';
       }
-
-      setExtractedRecord((prev) => ({ ...prev, mood: detectedMood }));
+      setExtractedRecord((prev) => ({ ...prev, mood }));
       nextStage = 'energy';
-      aiResponse = `Thank you. How would you rate your energy level today on a scale from 1 (very low) to 10 (high)?`;
-      suggestions = ['8 - Good energy', '6 - Moderate', '3 - Low energy'];
+      aiResponse = `Wonderful to hear. How would you rate your energy level today on a scale of 1 to 10?`;
+      suggestions = ['🔋 8 - Energetic & Active', '⚡ 7 - Normal Energy', '😴 5 - Mildly Low', '🪫 3 - Very Tired'];
     } 
     else if (currentStage === 'energy') {
-      const match = lower.match(/\b([1-9]|10)\b/);
-      const energy = match ? parseInt(match[1], 10) : 7;
+      const numMatch = lower.match(/\b([1-9]|10)\b/);
+      let energy = 7;
+      if (numMatch) energy = parseInt(numMatch[1], 10);
+      else if (lower.includes('high') || lower.includes('great') || lower.includes('full')) energy = 8;
+      else if (lower.includes('low') || lower.includes('tired') || lower.includes('sluggish')) energy = 4;
+
       setExtractedRecord((prev) => ({ ...prev, energyLevel: energy }));
       nextStage = 'sleep';
-      aiResponse = `Got it! Energy rated at ${energy}/10. How did you sleep last night (also rated 1 to 10)?`;
-      suggestions = ['8 - Slept well', '6 - Fair sleep', '4 - Woke up often'];
+      aiResponse = `Got it, energy logged at ${energy}/10. How was your sleep last night? (Hours or quality 1–10)`;
+      suggestions = ['🌙 Slept 8 hours soundly', '🛌 Slept 7 hours well', '🥱 Woke up a few times (5/10)', '❌ Poor sleep'];
     }
     else if (currentStage === 'sleep') {
-      const match = lower.match(/\b([1-9]|10)\b/);
-      const sleep = match ? parseInt(match[1], 10) : 7;
+      const numMatch = lower.match(/\b([1-9]|10)\b/);
+      let sleep = 7;
+      if (numMatch) sleep = parseInt(numMatch[1], 10);
+      else if (lower.includes('great') || lower.includes('soundly') || lower.includes('8') || lower.includes('well')) sleep = 8;
+      else if (lower.includes('poor') || lower.includes('woke up') || lower.includes('bad')) sleep = 4;
+
       setExtractedRecord((prev) => ({ ...prev, sleepQuality: sleep }));
       nextStage = 'pain';
-      aiResponse = `Recorded sleep at ${sleep}/10. Do you have any pain or discomfort today (0 for none, up to 10)?`;
-      suggestions = ['0 - No pain', '2 - Mild aches', '5 - Moderate back pain'];
+      aiResponse = `Recorded sleep quality at ${sleep}/10. Are you feeling any physical aches, joint stiffness, or pain today?`;
+      suggestions = ['🟢 No pain (0/10)', '🟡 Mild stiffness (2/10)', '🟠 Moderate ache (4/10)', '🔴 Noticeable pain (6/10)'];
     }
     else if (currentStage === 'pain') {
-      const match = lower.match(/\b([0-9]|10)\b/);
-      const pain = match ? parseInt(match[1], 10) : 0;
-      setExtractedRecord((prev) => ({ 
-        ...prev, 
-        painLevel: pain,
-        painNotes: pain > 0 ? userText : undefined,
-      }));
+      let pain = 0;
+      let notes = '';
+      const numMatch = lower.match(/\b([0-9]|10)\b/);
+      if (numMatch) pain = parseInt(numMatch[1], 10);
+      else if (lower.includes('no') || lower.includes('none') || lower.includes('zero')) pain = 0;
+      else if (lower.includes('mild') || lower.includes('stiff') || lower.includes('little')) pain = 2;
+      else if (lower.includes('moderate') || lower.includes('ache')) pain = 4;
+      else if (lower.includes('severe') || lower.includes('lot') || lower.includes('bad')) pain = 7;
+
+      if (pain > 0) notes = userText;
+
+      setExtractedRecord((prev) => ({ ...prev, painLevel: pain, painNotes: notes || undefined }));
       nextStage = 'blood_pressure';
-      aiResponse = `Understood. Have you measured your blood pressure today? You can say "No" or provide your reading (e.g. "120 over 80").`;
-      suggestions = ['120 / 80', '125 / 82', 'No, did not measure'];
+      aiResponse = pain > 0 
+        ? `Noted pain level at ${pain}/10. Did you measure your blood pressure today? If so, what was your reading?`
+        : `Great to hear no pain! Did you measure your blood pressure today? (e.g. 120/80 or tap Skip)`;
+      suggestions = ['120 / 80', '125 / 82', '130 / 85', 'Skip blood pressure today'];
     }
     else if (currentStage === 'blood_pressure') {
-      const bpMatch = lower.match(/(\d{2,3})\s*(?:\/|over|\s)\s*(\d{2,3})/);
+      const bpMatch = lower.match(/(\d{2,3})\s*(?:\/|\s+over\s+)\s*(\d{2,3})/);
       if (bpMatch) {
         const sys = parseInt(bpMatch[1], 10);
         const dia = parseInt(bpMatch[2], 10);
@@ -299,16 +226,16 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
           ...prev,
           bloodPressure: { measured: true, systolic: sys, diastolic: dia, pulse: 72 },
         }));
-        aiResponse = `Logged blood pressure at ${sys}/${dia} mmHg. Have you taken your morning medications?`;
+        aiResponse = `Logged blood pressure at ${sys}/${dia} mmHg. Have you taken your scheduled morning medications today?`;
       } else {
         setExtractedRecord((prev) => ({
           ...prev,
           bloodPressure: { measured: false },
         }));
-        aiResponse = `No problem! Have you taken your scheduled morning medications today?`;
+        aiResponse = `No problem, skipped BP for now. Have you taken your scheduled morning medications today?`;
       }
       nextStage = 'medication';
-      suggestions = ['✅ Taken', '⏰ Not yet', '❌ Missed'];
+      suggestions = ['✅ Yes, took all morning meds', '⏰ Not yet, taking soon', '❌ Missed a dose'];
     }
     else if (currentStage === 'medication') {
       let status: MedicationStatus = 'taken';
@@ -319,8 +246,8 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
       }
       setExtractedRecord((prev) => ({ ...prev, medicationStatus: status }));
       nextStage = 'symptoms';
-      aiResponse = `Noted. Are you experiencing any symptoms today like dizziness, fatigue, headache, or stress?`;
-      suggestions = ['No symptoms, feeling good', 'A little dizziness', 'Mild fatigue', 'Stress', 'Headache'];
+      aiResponse = `Noted. Are you experiencing any specific symptoms today like dizziness, fatigue, shortness of breath, or headache?`;
+      suggestions = ['No symptoms, all clear', 'Mild dizziness', 'Fatigue / Tiredness', 'Headache', 'Stress'];
     }
     else if (currentStage === 'symptoms') {
       const symList: string[] = [];
@@ -329,9 +256,8 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
       if (lower.includes('headache') || lower.includes('head ache')) symList.push('Headache');
       if (lower.includes('chest')) symList.push('Chest discomfort');
       if (lower.includes('breath')) symList.push('Shortness of breath');
-      if (lower.includes('stress') || lower.includes('anxious') || lower.includes('worried')) symList.push('Stress');
+      if (lower.includes('stress') || lower.includes('anxious')) symList.push('Stress');
       if (lower.includes('nausea') || lower.includes('stomach')) symList.push('Nausea');
-      if (lower.includes('pain') || lower.includes('ache') || lower.includes('stiff')) symList.push('Pain');
 
       setExtractedRecord((prev) => ({ 
         ...prev, 
@@ -339,12 +265,12 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
         symptomNotes: symList.length > 0 ? userText : undefined,
       }));
       nextStage = 'weight_notes';
-      aiResponse = `Got it. Anything else you would like to record today, such as your weight or notes about your day?`;
-      suggestions = ['Everything else looks good', 'Weight is 152 lbs', 'Going for a walk later'];
+      aiResponse = `Recorded! Anything else you'd like to add today, such as your morning weight or a quick note about your day?`;
+      suggestions = ['Everything looks great, all done', 'Weight is 152 lbs', 'Going for a park walk later'];
     }
     else if (currentStage === 'weight_notes') {
       const weightMatch = lower.match(/(\d{2,3}(?:\.\d)?)\s*(?:lbs|pounds|kg)?/);
-      let foundWeight = weightMatch ? parseFloat(weightMatch[1]) : undefined;
+      const foundWeight = weightMatch ? parseFloat(weightMatch[1]) : undefined;
 
       setExtractedRecord((prev) => ({
         ...prev,
@@ -352,23 +278,22 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
         dailyNotes: userText,
       }));
       nextStage = 'completed';
-      aiResponse = `All done! I have populated your complete health record. You can review the details on the side and click "Save & Finish Check-In".`;
+      aiResponse = `All done! Your daily health check-in record is complete. Please review the live summary on the right and click "Save & Finish Check-In".`;
     }
 
     setStage(nextStage);
 
     setTimeout(() => {
-      const finalAiResponse = reminderNote ? `${reminderNote}\n\n${aiResponse}` : aiResponse;
       const aiMsg: Message = {
         id: `ai-${Date.now()}`,
         sender: 'ai',
-        text: finalAiResponse,
+        text: aiResponse,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         suggestions,
       };
       setMessages([...currentHistory, aiMsg]);
       if (profile.soundEnabled) {
-        speakText(finalAiResponse);
+        speakText(aiResponse);
       }
     }, 400);
   };
@@ -380,7 +305,6 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
       return;
     }
 
-    setVoiceError(null);
     setIsListening(true);
 
     SpeechService.startListening(
@@ -391,13 +315,8 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
           handleSendMessage(text);
         }
       },
-      (err) => {
-        setVoiceError(err);
-        setIsListening(false);
-      },
-      () => {
-        setIsListening(false);
-      }
+      () => setIsListening(false),
+      () => setIsListening(false)
     );
   };
 
@@ -425,99 +344,95 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
   };
 
   return (
-    <div className="max-w-5xl mx-auto my-2 sm:my-4 space-y-4">
+    <div className="max-w-6xl mx-auto space-y-4 animate-fadeIn text-slate-100">
       {/* Mobile-only view toggle bar */}
-      <div className="flex lg:hidden items-center bg-white p-1 rounded-2xl border-2 border-slate-200 shadow-sm">
+      <div className="flex lg:hidden items-center bg-slate-900 p-1 rounded-2xl border border-slate-800 shadow-sm">
         <button
           onClick={() => setMobileView('chat')}
-          className={`flex-1 py-2.5 rounded-xl font-extrabold text-sm transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 ${
             mobileView === 'chat'
-              ? 'bg-emerald-700 text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white'
           }`}
         >
           <Sparkles className="w-4 h-4 text-amber-300" />
-          <span>💬 Voice / Chat</span>
+          <span>💬 Voice & Chat</span>
         </button>
 
         <button
           onClick={() => setMobileView('record')}
-          className={`flex-1 py-2.5 rounded-xl font-extrabold text-sm transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 ${
             mobileView === 'record'
-              ? 'bg-emerald-700 text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white'
           }`}
         >
-          <Heart className="w-4 h-4 text-rose-300" />
-          <span>📋 Live Record</span>
+          <Heart className="w-4 h-4 text-rose-400" />
+          <span>📋 Live Summary</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        {/* Left 2 Cols: Chat Window */}
-        <div className={`lg:col-span-2 bg-white rounded-3xl border-2 border-slate-200 shadow-xl overflow-hidden flex flex-col h-[520px] sm:h-[600px] lg:h-[640px] ${
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        {/* Left Column: AI Chat Window (7 cols) */}
+        <div className={`lg:col-span-7 bg-slate-900/90 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[560px] sm:h-[640px] backdrop-blur-md ${
           mobileView === 'record' ? 'hidden lg:flex' : 'flex'
         }`}>
           {/* Chat Header */}
-          <div className="bg-gradient-to-r from-emerald-700 to-teal-800 p-3.5 sm:p-5 text-white flex items-center justify-between">
-            <div className="flex items-center gap-2.5 sm:gap-3">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300" />
+          <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 p-4 sm:p-5 text-white flex items-center justify-between border-b border-slate-800">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-600/30 border border-emerald-500/40 flex items-center justify-center flex-shrink-0 shadow-md">
+                <Sparkles className="w-5 h-5 text-amber-300" />
               </div>
-              <div>
-                <h2 className="text-lg sm:text-xl font-extrabold leading-tight">AI Check-In Assistant</h2>
-                <p className="text-[11px] sm:text-xs text-emerald-100 font-medium">
-                  Talk or type — logging check-in automatically
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-black text-white leading-tight truncate">
+                  AI Daily Check-In Assistant
+                </h2>
+                <p className="text-xs text-slate-300 font-medium truncate">
+                  Talk or type — your answers build your health record automatically
                 </p>
               </div>
             </div>
+
             <button
               onClick={onCancel}
-              className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors whitespace-nowrap"
+              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors whitespace-nowrap"
             >
-              Form Mode
+              Cancel
             </button>
           </div>
 
-          {/* Speaker, Speed & Mute Adjustment Bar */}
-          <div className="bg-emerald-900/90 text-white px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-emerald-800/60">
-            {/* Left: Persona Switcher & Mute Toggle */}
+          {/* Voice Controls Bar: Speaker, Mute & Speed */}
+          <div className="bg-slate-950/80 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-800">
+            {/* Persona Switcher & Mute Toggle */}
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Mute / Unmute Button */}
               <button
                 onClick={() => {
-                  if (onToggleSound) {
-                    onToggleSound();
-                  }
-                  if (profile.soundEnabled) {
-                    SpeechService.stopSpeaking();
-                  }
+                  if (onToggleSound) onToggleSound();
+                  if (profile.soundEnabled) SpeechService.stopSpeaking();
                 }}
-                className={`px-2.5 py-1 rounded-lg font-black text-[11px] sm:text-xs flex items-center gap-1.5 transition-all active:scale-95 border ${
+                className={`px-3 py-1 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all active:scale-95 border ${
                   !profile.soundEnabled
-                    ? 'bg-rose-500/30 hover:bg-rose-500/40 text-rose-200 border-rose-400/50 shadow-xs'
-                    : 'bg-emerald-800 hover:bg-emerald-700 text-emerald-100 border-emerald-600'
+                    ? 'bg-rose-950/40 text-rose-300 border-rose-500/40'
+                    : 'bg-emerald-950/40 text-emerald-300 border-emerald-500/40'
                 }`}
-                title={profile.soundEnabled ? 'Click to Mute AI voice' : 'Click to Unmute AI voice'}
+                title={profile.soundEnabled ? 'Mute AI Voice' : 'Unmute AI Voice'}
               >
                 {!profile.soundEnabled ? (
                   <>
-                    <VolumeX className="w-3.5 h-3.5 text-rose-300" />
-                    <span>Muted (Silent)</span>
+                    <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Muted</span>
                   </>
                 ) : (
                   <>
-                    <Volume2 className="w-3.5 h-3.5 text-emerald-300" />
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Voice On</span>
                   </>
                 )}
               </button>
 
-              {/* Persona Switcher */}
               <div className="flex items-center gap-1.5">
-                <span className="font-bold flex items-center gap-1 text-emerald-200 text-[11px] sm:text-xs">
-                  Speaker:
-                </span>
+                <span className="font-bold text-slate-400 text-xs">Speaker:</span>
                 <button
                   onClick={() => {
                     const personas = CURATED_VOICE_PERSONAS;
@@ -525,32 +440,29 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
                     const nextP = personas[(idx + 1) % personas.length];
                     handlePersonaChange(nextP.id);
                   }}
-                  className="px-2 py-0.5 sm:py-1 rounded-md bg-emerald-800 hover:bg-emerald-700 text-emerald-100 font-extrabold text-[11px] sm:text-xs border border-emerald-700 flex items-center gap-1 transition-all active:scale-95"
-                  title="Click to switch AI speaking voice"
+                  className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-black text-xs border border-slate-700 flex items-center gap-1 transition-all active:scale-95"
                 >
                   <span>{activePersona.emoji}</span>
                   <span>{activePersona.name}</span>
-                  <span className="text-[10px] text-emerald-300">({activePersona.accent})</span>
                 </button>
               </div>
             </div>
 
-            {/* Right: Speed Selector */}
-            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
-              <span className="text-emerald-300 font-bold text-[10px] sm:text-xs">Speed:</span>
+            {/* Speed Selector */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-slate-400 font-bold text-xs">Speed:</span>
               {[
                 { val: 0.75, label: '0.75x' },
-                { val: 0.9, label: '0.9x' },
                 { val: 1.0, label: '1.0x' },
                 { val: 1.25, label: '1.25x' },
               ].map((s) => (
                 <button
                   key={s.val}
                   onClick={() => handleSpeedChange(s.val)}
-                  className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md font-bold text-[11px] sm:text-xs transition-all ${
+                  className={`px-2 py-0.5 rounded-lg font-black text-[11px] transition-all ${
                     Math.abs(currentSpeed - s.val) < 0.05
-                      ? 'bg-amber-400 text-slate-900 shadow-sm font-extrabold'
-                      : 'bg-emerald-800/80 hover:bg-emerald-700 text-emerald-100'
+                      ? 'bg-amber-400 text-slate-950 shadow-sm'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
                   {s.label}
@@ -560,28 +472,28 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
           </div>
 
           {/* Message Thread */}
-          <div className="flex-1 p-3 sm:p-6 overflow-y-auto space-y-3.5 bg-slate-50/50">
+          <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 bg-slate-950/40">
             {messages.map((msg) => (
               <div
                 key={msg.id}
                 className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
               >
                 <div
-                  className={`max-w-[90%] sm:max-w-[85%] rounded-3xl p-3.5 sm:p-5 font-semibold text-base sm:text-lg leading-relaxed shadow-sm ${
+                  className={`max-w-[90%] sm:max-w-[85%] rounded-3xl p-4 sm:p-5 font-semibold text-sm sm:text-base leading-relaxed shadow-md ${
                     msg.sender === 'user'
                       ? 'bg-emerald-600 text-white rounded-tr-sm'
-                      : 'bg-white text-slate-900 border-2 border-slate-200 rounded-tl-sm'
+                      : 'bg-slate-900 text-white border border-slate-800 rounded-tl-sm'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-3">
                     <p className="whitespace-pre-line">{msg.text}</p>
                     {msg.sender === 'ai' && (
                       <button
                         onClick={() => speakText(msg.text)}
-                        className="p-1 text-slate-400 hover:text-emerald-700 rounded-lg flex-shrink-0"
+                        className="p-1 text-slate-400 hover:text-emerald-300 rounded-lg flex-shrink-0"
                         title="Read aloud"
                       >
-                        <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                        <Volume2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -589,189 +501,167 @@ export const ConversationalCheckIn: React.FC<ConversationalCheckInProps> = ({
 
                 {/* Quick suggestion chips */}
                 {msg.suggestions && msg.suggestions.length > 0 && stage !== 'completed' && (
-                  <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2 max-w-[90%] sm:max-w-[85%]">
+                  <div className="flex flex-wrap gap-2 mt-2 max-w-[90%] sm:max-w-[85%]">
                     {msg.suggestions.map((chip, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleSendMessage(chip)}
-                        className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-white hover:bg-emerald-50 text-slate-800 font-bold text-xs sm:text-sm border-2 border-slate-200 hover:border-emerald-400 shadow-sm transition-all active:scale-95"
+                        className="px-3.5 py-2 rounded-2xl bg-slate-800/90 hover:bg-slate-750 text-slate-200 font-black text-xs sm:text-sm border border-slate-700 hover:border-emerald-500 shadow-sm transition-all active:scale-95"
                       >
                         {chip}
                       </button>
                     ))}
                   </div>
                 )}
-
-                <span className="text-[10px] sm:text-xs font-semibold text-slate-400 mt-1 px-2">
-                  {msg.timestamp}
-                </span>
               </div>
             ))}
             <div ref={chatEndRef} />
           </div>
 
-          {/* Quick Medical Info Topic Chips */}
-          <div className="px-3 sm:px-4 pt-2 pb-1 bg-slate-50 border-t border-slate-200 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 flex-shrink-0">
-              <Sparkles className="w-3 h-3 text-amber-500" />
-              <span>Ask AI:</span>
-            </span>
-            <button
-              onClick={() => handleSendMessage('What is my latest blood pressure and pulse?')}
-              className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold text-[11px] border border-slate-200 hover:border-rose-300 transition-all flex items-center gap-1 flex-shrink-0 shadow-xs"
-            >
-              <Activity className="w-3 h-3 text-rose-500" />
-              <span>Latest BP & Pulse</span>
-            </button>
-            <button
-              onClick={() => handleSendMessage('What medications do I have scheduled today?')}
-              className="px-2.5 py-1 rounded-lg bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-bold text-[11px] border border-slate-200 hover:border-emerald-300 transition-all flex items-center gap-1 flex-shrink-0 shadow-xs"
-            >
-              <Pill className="w-3 h-3 text-emerald-500" />
-              <span>Today's Medicines</span>
-            </button>
-            <button
-              onClick={() => handleSendMessage('What did my doctor say and recommend?')}
-              className="px-2.5 py-1 rounded-lg bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold text-[11px] border border-slate-200 hover:border-blue-300 transition-all flex items-center gap-1 flex-shrink-0 shadow-xs"
-            >
-              <Stethoscope className="w-3 h-3 text-blue-500" />
-              <span>Doctor Notes</span>
-            </button>
-            <button
-              onClick={() => handleSendMessage('What are my healthy vitals target ranges?')}
-              className="px-2.5 py-1 rounded-lg bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold text-[11px] border border-slate-200 hover:border-indigo-300 transition-all flex items-center gap-1 flex-shrink-0 shadow-xs"
-            >
-              <Heart className="w-3 h-3 text-indigo-500" />
-              <span>My Target Ranges</span>
-            </button>
-          </div>
-
           {/* Input Bar */}
-          <div className="p-3 sm:p-4 bg-white border-t border-slate-200 space-y-2">
-            {voiceError && (
-              <p className="text-xs font-bold text-rose-600 px-2">{voiceError}</p>
-            )}
+          <div className="p-3.5 sm:p-4 bg-slate-900 border-t border-slate-800 flex items-center gap-2">
+            <button
+              onClick={handleToggleVoiceInput}
+              className={`p-3 rounded-2xl transition-all flex-shrink-0 ${
+                isListening
+                  ? 'bg-rose-600 text-white animate-pulse shadow-lg shadow-rose-950/50'
+                  : 'bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40'
+              }`}
+              title="Click to speak"
+            >
+              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </button>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleToggleVoiceInput}
-                className={`p-3 sm:p-4 rounded-2xl font-extrabold flex items-center justify-center transition-all flex-shrink-0 ${
-                  isListening
-                    ? 'bg-rose-600 text-white animate-pulse shadow-lg ring-4 ring-rose-200'
-                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200'
-                }`}
-                title={isListening ? 'Stop listening' : 'Start speaking'}
-              >
-                {isListening ? <MicOff className="w-5 h-5 sm:w-7 sm:h-7" /> : <Mic className="w-5 h-5 sm:w-7 sm:h-7" />}
-              </button>
+            <input
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSendMessage();
+              }}
+              placeholder={isListening ? 'Listening to your voice...' : 'Type your answer or select an option above...'}
+              className="flex-1 text-sm sm:text-base py-3 px-4 rounded-2xl border border-slate-700 bg-slate-950/80 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-medium"
+            />
 
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder={isListening ? 'Listening...' : 'Type or speak here...'}
-                className="flex-1 text-base sm:text-lg p-2.5 sm:p-3.5 rounded-2xl border-2 border-slate-300 focus:border-emerald-600 focus:outline-none font-medium bg-slate-50 min-w-0"
-              />
-
-              <button
-                onClick={() => handleSendMessage()}
-                disabled={!inputText.trim()}
-                className="p-3 sm:p-4 rounded-2xl bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white transition-all flex-shrink-0"
-              >
-                <Send className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
-            </div>
+            <button
+              onClick={() => handleSendMessage()}
+              disabled={!inputText.trim()}
+              className="p-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white shadow-md transition-all active:scale-95 flex-shrink-0"
+            >
+              <Send className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
-        {/* Right 1 Col: Live Health Record Extraction Card */}
-        <div className={`bg-white rounded-3xl border-2 border-slate-200 shadow-xl p-5 sm:p-6 flex flex-col justify-between h-[520px] sm:h-[600px] lg:h-[640px] ${
-          mobileView === 'chat' ? 'hidden lg:flex' : 'flex'
+        {/* Right Column: Live Health Summary Record (5 cols) */}
+        <div className={`lg:col-span-5 bg-slate-900/90 rounded-3xl border border-slate-800 shadow-2xl p-5 sm:p-7 space-y-5 backdrop-blur-md ${
+          mobileView === 'chat' ? 'hidden lg:block' : 'block'
         }`}>
-          <div className="overflow-y-auto pr-1">
-            <div className="flex items-center justify-between border-b pb-3 mb-3">
-              <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
-                Live Extracted Record
-              </h3>
-              <span className="text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                Auto-Populated
-              </span>
-            </div>
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
+            <h3 className="text-xl font-black text-white flex items-center gap-2">
+              <Heart className="w-5 h-5 text-rose-400" />
+              <span>Today's Health Record</span>
+            </h3>
+            <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              Live Sync
+            </span>
+          </div>
 
-            <div className="space-y-3 text-sm sm:text-base">
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="font-medium text-slate-500">Mood:</span>
-                <span className="font-extrabold capitalize text-slate-900">{extractedRecord.mood?.replace('_', ' ')}</span>
-              </div>
-
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="font-medium text-slate-500">Energy Level:</span>
-                <span className="font-extrabold text-slate-900">{extractedRecord.energyLevel} / 10</span>
-              </div>
-
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="font-medium text-slate-500">Sleep Quality:</span>
-                <span className="font-extrabold text-slate-900">{extractedRecord.sleepQuality} / 10</span>
-              </div>
-
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="font-medium text-slate-500">Pain Level:</span>
-                <span className="font-extrabold text-slate-900">{extractedRecord.painLevel} / 10</span>
-              </div>
-
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="font-medium text-slate-500">Blood Pressure:</span>
-                <span className="font-extrabold text-slate-900">
-                  {extractedRecord.bloodPressure?.measured && extractedRecord.bloodPressure.systolic
-                    ? `${extractedRecord.bloodPressure.systolic}/${extractedRecord.bloodPressure.diastolic} mmHg`
-                    : 'Not measured'}
+          <div className="space-y-3">
+            {/* Mood & Energy Cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800">
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Mood</span>
+                <span className="text-xl font-black text-white mt-1 block capitalize">
+                  {extractedRecord.mood === 'very_good' ? '😀 Very Good' : extractedRecord.mood === 'good' ? '🙂 Good' : extractedRecord.mood === 'okay' ? '😐 Okay' : '🙁 Unwell'}
                 </span>
               </div>
 
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="font-medium text-slate-500">Medications:</span>
-                <span className="font-extrabold capitalize text-slate-900">{extractedRecord.medicationStatus}</span>
-              </div>
-
-              <div className="py-1 border-b border-slate-100">
-                <span className="font-medium text-slate-500 block mb-1">Symptoms:</span>
-                <div className="flex flex-wrap gap-1">
-                  {extractedRecord.symptoms && extractedRecord.symptoms.length > 0 ? (
-                    extractedRecord.symptoms.map((s, i) => (
-                      <span key={i} className="text-xs font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800">
-                        {s}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-400 font-semibold">None reported</span>
-                  )}
+              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800">
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Energy Level</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-2xl font-black text-emerald-400">{extractedRecord.energyLevel}/10</span>
                 </div>
               </div>
-
-              {extractedRecord.dailyNotes && (
-                <div className="py-1">
-                  <span className="font-medium text-slate-500 text-xs block mb-1">Notes:</span>
-                  <p className="text-xs font-medium text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                    {extractedRecord.dailyNotes}
-                  </p>
-                </div>
-              )}
             </div>
+
+            {/* Sleep & Pain */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800">
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block flex items-center gap-1">
+                  <Moon className="w-3.5 h-3.5 text-indigo-400" /> Sleep Quality
+                </span>
+                <span className="text-2xl font-black text-indigo-300 mt-1 block">
+                  {extractedRecord.sleepQuality}/10
+                </span>
+              </div>
+
+              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800">
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5 text-rose-400" /> Pain Level
+                </span>
+                <span className="text-2xl font-black text-rose-400 mt-1 block">
+                  {extractedRecord.painLevel}/10
+                </span>
+              </div>
+            </div>
+
+            {/* Blood Pressure & Medication */}
+            <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Activity className="w-4 h-4 text-rose-400" /> Blood Pressure
+                </span>
+                <span className="text-sm font-black text-white">
+                  {extractedRecord.bloodPressure?.measured && extractedRecord.bloodPressure.systolic
+                    ? `${extractedRecord.bloodPressure.systolic}/${extractedRecord.bloodPressure.diastolic} mmHg`
+                    : 'Not Measured'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Pill className="w-4 h-4 text-emerald-400" /> Prescriptions
+                </span>
+                <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border ${
+                  extractedRecord.medicationStatus === 'taken'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                }`}>
+                  {extractedRecord.medicationStatus === 'taken' ? '✅ Confirmed Taken' : '⏳ Pending / Missed'}
+                </span>
+              </div>
+            </div>
+
+            {/* Symptoms & Notes */}
+            {extractedRecord.symptoms && extractedRecord.symptoms.length > 0 && (
+              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800 space-y-1">
+                <span className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">
+                  Reported Symptoms
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {extractedRecord.symptoms.map((s, idx) => (
+                    <span key={idx} className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/30">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Save button */}
-          <div className="pt-3 border-t border-slate-100">
+          {/* Final Finish Check-In CTA */}
+          <div className="pt-3">
             <button
               onClick={handleFinalSave}
-              className="w-full py-3.5 sm:py-4 rounded-2xl font-extrabold text-base sm:text-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all active:scale-95"
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-base sm:text-lg shadow-xl shadow-emerald-950/60 transition-all active:scale-98 flex items-center justify-center gap-2"
             >
-              <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span>Save & Finish Check-In</span>
+              <CheckCircle2 className="w-6 h-6" />
+              <span>Save & Complete Daily Check-In</span>
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );

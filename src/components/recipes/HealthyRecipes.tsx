@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, RecipeItem, RecipeMealType, DietaryTag, ReminderItem } from '../../types/health';
 import { HealthStorageService } from '../../services/healthStorage';
 import { SpeechService } from '../../services/speechService';
-import { RecipeGeneratorService } from '../../services/recipeGeneratorService';
+import { RecipeGeneratorService, WeeklySyncResult } from '../../services/recipeGeneratorService';
 import { 
   Utensils, 
   Clock, 
@@ -21,12 +21,12 @@ import {
   Leaf, 
   Flame, 
   ChevronDown, 
-  ChevronUp,
-  Sparkle,
-  Camera,
-  ChefHat,
-  Star,
-  ArrowRight
+  ChevronUp, 
+  Camera, 
+  ChefHat, 
+  Star, 
+  ArrowRight,
+  Calendar
 } from 'lucide-react';
 
 interface HealthyRecipesProps {
@@ -44,11 +44,17 @@ const MEAL_TYPE_OPTIONS: { key: 'all' | RecipeMealType; label: string; emoji: st
 ];
 
 const DIETARY_FILTERS: { key: 'all' | DietaryTag; label: string }[] = [
-  { key: 'all', label: 'All Diets' },
+  { key: 'all', label: 'All Healthy Diets' },
   { key: 'low_sodium', label: '🧂 Ultra Low-Sodium (<100mg)' },
   { key: 'vegetarian', label: '🌱 100% Vegetarian' },
-  { key: 'high_potassium', label: '🥑 High Potassium (BP Lowering)' },
+  { key: 'high_potassium', label: '🥑 High Potassium (BP Support)' },
   { key: 'heart_healthy', label: '❤️ Heart-Healthy' },
+];
+
+const COMMON_PANTRY_INGREDIENTS = [
+  'Tomatoes', 'Spinach', 'Lentils', 'Chickpeas', 'Avocado',
+  'Mushrooms', 'Garlic', 'Sweet Potato', 'Zucchini', 'Black Beans',
+  'Brown Rice', 'Oats', 'Broccoli', 'Bell Peppers', 'Lemon'
 ];
 
 export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavigateToScanner }) => {
@@ -57,21 +63,29 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
   const [selectedDietTag, setSelectedDietTag] = useState<'all' | DietaryTag>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showBookmarksOnly, setShowBookmarksOnly] = useState<boolean>(false);
-  const [expandedRecipeId, setExpandedRecipeId] = useState<string | null>('rec-1');
+  const [expandedRecipeId, setExpandedRecipeId] = useState<string | null>(null);
   const [addedGroceryId, setAddedGroceryId] = useState<string | null>(null);
-  const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  
+  // Interactive Checklist & Cooking Steps State per recipe
+  const [checkedIngredients, setCheckedIngredients] = useState<Record<string, boolean>>({});
+  const [checkedSteps, setCheckedSteps] = useState<Record<string, boolean>>({});
 
-  // Dynamic Daily Rotation & AI Generator State
+  // Modals
+  const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [isPantryModalOpen, setIsPantryModalOpen] = useState<boolean>(false);
+  const [isFlavorGuideOpen, setIsFlavorGuideOpen] = useState<boolean>(false);
+
+  // Weekly 7-Day Automatic Rotation State (Mon - Sun)
+  const [weeklySyncData, setWeeklySyncData] = useState<WeeklySyncResult | null>(null);
   const [isGeneratingAI, setIsGeneratingAI] = useState<boolean>(false);
   const [freshNotification, setFreshNotification] = useState<string | null>(null);
-  const [isPantryModalOpen, setIsPantryModalOpen] = useState<boolean>(false);
   const [pantryIngredients, setPantryIngredients] = useState<string>('');
 
   // AI Voice State
   const [isListening, setIsListening] = useState<boolean>(false);
   const [aiVoiceFeedback, setAiVoiceFeedback] = useState<string | null>(null);
 
-  // Modal Form State
+  // Add Custom Form State
   const [newTitle, setNewTitle] = useState<string>('');
   const [newMealType, setNewMealType] = useState<RecipeMealType>('dinner');
   const [newPrepTime, setNewPrepTime] = useState<number>(15);
@@ -88,12 +102,15 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
   const [newEmoji, setNewEmoji] = useState<string>('🥗');
 
   useEffect(() => {
-    // Check and add fresh seasonal recipes on app launch
-    const rotation = RecipeGeneratorService.ensureFreshSeasonalRecipes();
-    loadRecipes();
+    // Automatically check and sync weekly recipes on 7-day Monday–Sunday cycle
+    const sync = RecipeGeneratorService.syncWeeklyRecipes();
+    setWeeklySyncData(sync);
+    setRecipes([...sync.recipes]);
 
-    if (rotation.addedCount > 0) {
-      setFreshNotification(`✨ Fresh recipes added for today: "${rotation.newRecipes[0]?.title}"`);
+    if (sync.isNewWeek) {
+      setFreshNotification(
+        `🗓️ Welcome to your fresh 7-Day Menu (${sync.weekInfo.weekRangeLabel}): "${sync.currentTheme.title}"!`
+      );
     }
   }, []);
 
@@ -102,7 +119,19 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
     setRecipes([...list]);
   };
 
-  // Today's rotating chef feature (changes daily!)
+  const handleAdvanceWeeklyMenu = () => {
+    const sync = RecipeGeneratorService.advanceToNextWeeklyMenu();
+    setWeeklySyncData(sync);
+    setRecipes([...sync.recipes]);
+    const msg = `🗓️ Switched to 7-Day Menu (${sync.weekInfo.weekRangeLabel}): "${sync.currentTheme.title}"!`;
+    setFreshNotification(msg);
+    setAiVoiceFeedback(msg);
+    if (profile.soundEnabled) {
+      SpeechService.speak(`Loaded 7-day menu: ${sync.currentTheme.title}`, profile.voiceSpeed);
+    }
+  };
+
+  // Today's rotating chef feature (changes daily)
   const dailySpecial = useMemo(() => {
     return RecipeGeneratorService.getDailyFeaturedRecipe(recipes);
   }, [recipes]);
@@ -131,10 +160,9 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
 
     setIsGeneratingAI(true);
     setTimeout(() => {
-      const items = pantryIngredients.split(',').map((s) => s.trim());
+      const items = pantryIngredients.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
       const customRecipe = RecipeGeneratorService.generateProceduralRecipe('dinner', items);
       
-      // Personalize title if user provided ingredients
       if (items.length > 0) {
         const primaryIng = items[0].charAt(0).toUpperCase() + items[0].slice(1);
         customRecipe.title = `Chef's Fresh ${primaryIng} & Garden Herb Medley`;
@@ -160,7 +188,7 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
       if (profile.soundEnabled) {
         SpeechService.speak(`Created a new recipe for you: ${customRecipe.title}`, profile.voiceSpeed);
       }
-    }, 800);
+    }, 700);
   };
 
   const handleToggleBookmark = (id: string, e: React.MouseEvent) => {
@@ -173,8 +201,7 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
     e.stopPropagation();
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Create a concise grocery item in Reminders
-    const ingredientSummary = recipe.ingredients.slice(0, 5).join(', ') + (recipe.ingredients.length > 5 ? '...' : '');
+    const ingredientSummary = recipe.ingredients.slice(0, 6).join(', ') + (recipe.ingredients.length > 6 ? '...' : '');
 
     const newReminder: ReminderItem = {
       id: `rem-grocery-${Date.now()}`,
@@ -189,9 +216,9 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
 
     HealthStorageService.addReminder(newReminder);
     setAddedGroceryId(recipe.id);
-    setTimeout(() => setAddedGroceryId(null), 3000);
+    setTimeout(() => setAddedGroceryId(null), 3500);
 
-    const msg = `Added ingredients for "${recipe.title}" to your Reminders list!`;
+    const msg = `Added ingredients for "${recipe.title}" to your Reminders grocery list!`;
     setAiVoiceFeedback(msg);
     if (profile.soundEnabled) {
       SpeechService.speak(msg, profile.voiceSpeed);
@@ -200,7 +227,7 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
 
   const handleReadRecipeAloud = (recipe: RecipeItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    const speechText = `${recipe.title}. Prep time ${recipe.prepTimeMinutes} minutes, cook time ${recipe.cookTimeMinutes} minutes. Sodium content: ${recipe.sodiumMgPerServing} milligrams per serving. Salt-free seasoning tip: ${recipe.saltFreeSeasoningTips}. Main ingredients include ${recipe.ingredients.slice(0, 4).join(', ')}.`;
+    const speechText = `${recipe.title}. Prep time ${recipe.prepTimeMinutes} minutes, cook time ${recipe.cookTimeMinutes} minutes. Sodium content: ${recipe.sodiumMgPerServing} milligrams per serving. Seasoning tip: ${recipe.saltFreeSeasoningTips}. Main ingredients include ${recipe.ingredients.slice(0, 4).join(', ')}.`;
     setAiVoiceFeedback(`Reading recipe for ${recipe.title}`);
     SpeechService.speak(speechText, profile.voiceSpeed);
   };
@@ -213,6 +240,14 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
     if (profile.soundEnabled) {
       SpeechService.speak(msg, profile.voiceSpeed);
     }
+  };
+
+  const handleToggleIngredientCheck = (key: string) => {
+    setCheckedIngredients((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleToggleStepCheck = (key: string) => {
+    setCheckedSteps((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleSaveCustomRecipe = () => {
@@ -250,6 +285,7 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
 
     HealthStorageService.addRecipe(newRec);
     loadRecipes();
+    setExpandedRecipeId(newRec.id);
 
     // Reset Form
     setNewTitle('');
@@ -269,31 +305,31 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
   const handleProcessVoiceCommand = (cmd: string) => {
     const lower = cmd.toLowerCase();
 
-    if (lower.includes('soup') || lower.includes('stew') || lower.includes('butternut') || lower.includes('bean stew')) {
+    if (lower.includes('soup') || lower.includes('stew') || lower.includes('butternut')) {
       setSelectedMealType('soup');
       setSelectedDietTag('all');
       setSearchQuery('');
-      const feedback = 'Showing comforting low-sodium soups and stews, including Tuscan White Bean and Butternut Squash Apple bisque.';
+      const feedback = 'Showing comforting low-sodium soups and stews.';
       setAiVoiceFeedback(feedback);
       if (profile.soundEnabled) SpeechService.speak(feedback, profile.voiceSpeed);
       return;
     }
 
-    if (lower.includes('breakfast') || lower.includes('oatmeal') || lower.includes('morning') || lower.includes('toast')) {
+    if (lower.includes('breakfast') || lower.includes('oatmeal') || lower.includes('morning')) {
       setSelectedMealType('breakfast');
       setSelectedDietTag('all');
       setSearchQuery('');
-      const feedback = 'Showing heart-healthy breakfasts, including Golden Turmeric Oatmeal and Avocado Toast.';
+      const feedback = 'Showing heart-healthy breakfasts and oats.';
       setAiVoiceFeedback(feedback);
       if (profile.soundEnabled) SpeechService.speak(feedback, profile.voiceSpeed);
       return;
     }
 
-    if (lower.includes('dinner') || lower.includes('lentil') || lower.includes('pasta') || lower.includes('tofu') || lower.includes('portobello')) {
+    if (lower.includes('dinner') || lower.includes('lentil') || lower.includes('pasta') || lower.includes('curry')) {
       setSelectedMealType('dinner');
       setSelectedDietTag('all');
       setSearchQuery('');
-      const feedback = 'Showing low-sodium vegetarian dinner ideas, including Lentil Bourguignon, Portobello Steaks, and Rainbow Roasted Veggies.';
+      const feedback = 'Showing low-sodium vegetarian dinner ideas.';
       setAiVoiceFeedback(feedback);
       if (profile.soundEnabled) SpeechService.speak(feedback, profile.voiceSpeed);
       return;
@@ -302,7 +338,7 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
     if (lower.includes('potassium') || lower.includes('blood pressure') || lower.includes('smoothie')) {
       setSelectedDietTag('high_potassium');
       setSearchQuery('');
-      const feedback = 'Showing potassium-rich meals and smoothies that naturally help relax blood vessels and lower blood pressure.';
+      const feedback = 'Showing potassium-rich meals and smoothies that support healthy blood pressure.';
       setAiVoiceFeedback(feedback);
       if (profile.soundEnabled) SpeechService.speak(feedback, profile.voiceSpeed);
       return;
@@ -366,99 +402,109 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
   const bookmarkedCount = recipes.filter((r) => r.isBookmarked).length;
 
   return (
-    <div className="max-w-6xl mx-auto my-3 sm:my-6 space-y-4 sm:space-y-6 animate-fadeIn">
+    <div className="max-w-6xl mx-auto space-y-6 pb-16 animate-fadeIn text-slate-100">
+      
       {/* Top Banner & Header */}
-      <div className="bg-white rounded-3xl border-2 border-slate-200 p-4 sm:p-6 md:p-8 shadow-sm">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-4 sm:pb-6">
-          <div>
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-xl backdrop-blur-md relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
+          <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-widest text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
-                Heart-Healthy Kitchen
+              <span className="text-xs font-black uppercase tracking-wider text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                <Utensils className="w-3.5 h-3.5" />
+                Heart-Healthy & Senior Culinary Care
               </span>
-              <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {recipes.length} Low-Sodium & Vegetarian Recipes
+              <span className="text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full">
+                {recipes.length} Prescriptions-Safe Dishes
               </span>
             </div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight mt-1 flex items-center gap-2 sm:gap-3">
-              <Utensils className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-600 flex-shrink-0" />
-              <span>Healthy Meals & Non-Salty Recipes</span>
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
+              <span>Healthy Meals & Low-Sodium Recipes</span>
             </h2>
-            <p className="text-xs sm:text-sm font-medium text-slate-600 mt-1">
-              Delicious low-sodium and vegetarian dishes with step-by-step recipes, salt-free seasoning tips, and 1-click grocery list integration.
+            <p className="text-xs sm:text-sm font-medium text-slate-300">
+              Cardiovascular-safe, potassium-rich meals with step-by-step cooking checklists and salt-free seasoning secrets.
             </p>
           </div>
 
+          {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            {/* Get Fresh AI Suggestions Button */}
             <button
               onClick={handleFetchFreshSuggestions}
               disabled={isGeneratingAI}
-              className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-200 flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap"
-              title="Add fresh chef recipe suggestions to your library"
+              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap"
+              title="Add fresh chef recipe suggestions"
             >
-              <Sparkles className={`w-4 h-4 text-amber-200 ${isGeneratingAI ? 'animate-spin' : ''}`} />
+              <Sparkles className={`w-4 h-4 text-amber-300 ${isGeneratingAI ? 'animate-spin' : ''}`} />
               <span>{isGeneratingAI ? 'Generating...' : '✨ Fresh AI Ideas'}</span>
             </button>
 
-            {/* AI Pantry Fridge Chef */}
             <button
               onClick={() => setIsPantryModalOpen(true)}
-              className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs sm:text-sm border border-slate-300 flex items-center justify-center gap-1.5 transition-all active:scale-95 whitespace-nowrap"
-              title="Cook with ingredients from your fridge"
+              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm border border-slate-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 whitespace-nowrap"
+              title="Cook with ingredients on hand"
             >
-              <ChefHat className="w-4 h-4 text-emerald-600" />
+              <ChefHat className="w-4 h-4 text-emerald-400" />
               <span>Pantry Chef</span>
             </button>
 
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-200 flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap"
+              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm border border-slate-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 whitespace-nowrap"
             >
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Plus className="w-4 h-4 text-emerald-400" />
               <span>Add Recipe</span>
             </button>
 
             <button
-              onClick={handleResetRecipes}
-              className="p-2.5 sm:p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors"
-              title="Refresh / Reload recipes"
+              onClick={() => setIsFlavorGuideOpen(true)}
+              className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-colors"
+              title="Salt-Free Flavor Master Guide"
             >
-              <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Leaf className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={handleResetRecipes}
+              className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+              title="Refresh / Reload default recipes"
+            >
+              <RefreshCw className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Fresh Recipe Rotation Banner / Notification */}
+        {/* Fresh Recipe Rotation Banner */}
         {freshNotification && (
-          <div className="mt-3 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl flex items-center justify-between gap-2 text-xs sm:text-sm font-bold text-emerald-900 animate-fadeIn">
+          <div className="mt-4 p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl flex items-center justify-between gap-2 text-xs sm:text-sm font-bold text-emerald-300 animate-fadeIn">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span>{freshNotification}</span>
             </div>
             <button
               onClick={() => setFreshNotification(null)}
-              className="text-emerald-700 hover:text-emerald-950 font-extrabold text-xs"
+              className="text-emerald-400 hover:text-white font-black text-xs px-2 py-0.5"
             >
               Dismiss
             </button>
           </div>
         )}
 
-        {/* Search Bar & Saved Bookmarks Toggle */}
-        <div className="pt-4 sm:pt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        {/* Search Bar & Saved Toggle */}
+        <div className="pt-5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
             <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search recipes, ingredients (spinach, lentils, avocado, mushrooms, garlic)..."
-              className="w-full text-sm sm:text-base pl-11 pr-4 py-3 rounded-2xl border-2 border-slate-300 focus:border-emerald-600 focus:outline-none font-semibold bg-slate-50"
+              placeholder="Search recipes or ingredients (spinach, lentils, avocado, mushrooms, turmeric)..."
+              className="w-full text-sm sm:text-base pl-11 pr-10 py-3 rounded-2xl border border-slate-700 bg-slate-950/80 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-medium"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-3.5 text-xs font-bold text-slate-400 hover:text-slate-600"
+                className="absolute right-3.5 top-3.5 text-xs font-bold text-slate-400 hover:text-white"
               >
                 Clear
               </button>
@@ -467,10 +513,10 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
 
           <button
             onClick={() => setShowBookmarksOnly(!showBookmarksOnly)}
-            className={`px-4 py-3 rounded-2xl font-extrabold text-xs sm:text-sm border-2 transition-all flex items-center justify-center gap-2 flex-shrink-0 ${
+            className={`px-4 py-3 rounded-2xl font-black text-xs sm:text-sm border transition-all flex items-center justify-center gap-2 flex-shrink-0 ${
               showBookmarksOnly
-                ? 'bg-emerald-600 border-emerald-700 text-white shadow-md'
-                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-950/50'
+                : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-750'
             }`}
           >
             <Bookmark className={`w-4 h-4 ${showBookmarksOnly ? 'fill-white' : ''}`} />
@@ -478,25 +524,25 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
           </button>
         </div>
 
-        {/* AI Food Scanner Quick Banner */}
+        {/* AI Food Scanner Shortcut Banner */}
         {onNavigateToScanner && (
-          <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50 border-2 border-emerald-300 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-indigo-950/40 border border-emerald-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-md">
                 <Camera className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-extrabold text-sm sm:text-base text-slate-900">
-                  Eating Out or At Friends? Try the AI Food Scanner
+                <h4 className="font-black text-sm sm:text-base text-white">
+                  Eating Out or At Friends? Try the AI Food Camera Scanner
                 </h4>
-                <p className="text-xs text-slate-600 font-semibold">
-                  Snap a picture of your dish with your camera to instantly calculate ingredients, calories, carbs, and restaurant sodium!
+                <p className="text-xs text-slate-300 font-medium">
+                  Snap a photo of your plate to instantly analyze ingredients, calories, carbs, and estimated sodium!
                 </p>
               </div>
             </div>
             <button
               onClick={onNavigateToScanner}
-              className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs sm:text-sm shadow-sm transition-all whitespace-nowrap active:scale-95 flex items-center gap-1.5"
+              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm shadow-md transition-all whitespace-nowrap active:scale-95 flex items-center gap-1.5"
             >
               <Camera className="w-4 h-4" />
               <span>Launch Food Scanner</span>
@@ -505,34 +551,90 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
         )}
       </div>
 
-      {/* AI Voice Meal Assistant Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-teal-950 to-emerald-950 text-white rounded-2xl p-3 sm:p-3.5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2.5 min-w-0">
+      {/* 🗓️ 7-Day Rotating Menu Showcase (Mon - Sun) */}
+      {weeklySyncData && (
+        <div className="bg-gradient-to-r from-emerald-950/90 via-slate-900/95 to-teal-950/90 border border-emerald-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl backdrop-blur-md space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-emerald-500/20 pb-4">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 shadow-xs">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Automatic 7-Day Menu (Mon – Sun)</span>
+                </span>
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800/80 text-slate-300 border border-slate-700">
+                  {weeklySyncData.weekInfo.thisWeekFullLabel}
+                </span>
+                <span className="px-2.5 py-1 rounded-full text-xs font-black bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                  🔄 Updates every Monday ({weeklySyncData.weekInfo.daysRemainingInWeek}d left)
+                </span>
+              </div>
+
+              <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5 pt-1">
+                <span className="text-2xl sm:text-3xl">{weeklySyncData.currentTheme.bannerEmoji}</span>
+                <span>{weeklySyncData.currentTheme.title}</span>
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
+                {weeklySyncData.currentTheme.description}
+              </p>
+            </div>
+
+            {/* Manual Preview / Shuffle to Next Week Button */}
+            <div className="flex flex-col items-start lg:items-end gap-1.5 flex-shrink-0">
+              <button
+                onClick={handleAdvanceWeeklyMenu}
+                className="px-4 py-2.5 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-black text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer shadow-md active:scale-95"
+                title={`Shuffle early to next week: ${weeklySyncData.nextTheme.title}`}
+              >
+                <RefreshCw className="w-4 h-4 text-emerald-400" />
+                <span>Shuffle / Next 7-Day Menu Preview</span>
+              </button>
+              <span className="text-[11px] font-bold text-slate-400">
+                Next Week: {weeklySyncData.nextTheme.bannerEmoji} {weeklySyncData.nextTheme.title}
+              </span>
+            </div>
+          </div>
+
+          {/* Nutrition Highlight of the Week */}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-emerald-200/90 bg-emerald-950/40 border border-emerald-500/20 rounded-xl px-3.5 py-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+              <span>Weekly Focus: <strong className="text-white">{weeklySyncData.currentTheme.highlightNutrient}</strong></span>
+            </div>
+            <span className="text-[11px] text-slate-400 font-medium">
+              All dishes &lt; 100mg sodium • 100% Doctor & Medication-Safe
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* AI Voice Assistant Quick Bar */}
+      <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-teal-950/80 border border-emerald-500/30 text-white rounded-3xl p-4 shadow-xl backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={handleToggleVoice}
-            className={`p-2 sm:p-2.5 rounded-xl transition-all flex-shrink-0 ${
+            className={`p-3 rounded-2xl transition-all flex-shrink-0 ${
               isListening
-                ? 'bg-rose-600 text-white animate-pulse shadow-md ring-2 ring-rose-300'
-                : 'bg-white/20 hover:bg-white/30 text-white'
+                ? 'bg-rose-600 text-white animate-pulse shadow-lg shadow-rose-950/50'
+                : 'bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40'
             }`}
             title="Ask AI by voice"
           >
-            {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
+            {isListening ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-emerald-300" />}
           </button>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+              <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <button
-                onClick={() => SpeechService.speak(aiVoiceFeedback || 'Ask e.g. "Low-sodium dinner" or "Lentil soup"', profile.voiceSpeed)}
-                className="p-1 rounded-lg hover:bg-white/20 text-emerald-200 hover:text-white transition-colors"
+                onClick={() => SpeechService.speak(aiVoiceFeedback || 'Ask "Low-sodium dinner" or "Warm vegetable soup"', profile.voiceSpeed)}
+                className="p-0.5 rounded hover:bg-slate-800 text-emerald-300"
                 title="Listen"
               >
                 <Volume2 className="w-3.5 h-3.5" />
               </button>
-              <h4 className="font-extrabold text-xs sm:text-sm tracking-tight truncate">Say it in AI</h4>
+              <h4 className="font-black text-xs sm:text-sm text-white tracking-tight truncate">Voice Recipe Assistant</h4>
             </div>
-            <p className="text-[11px] sm:text-xs text-emerald-100 font-medium truncate">
-              {aiVoiceFeedback || 'Ask e.g. "Low-sodium dinner" or "Lentil soup"'}
+            <p className="text-xs text-slate-300 font-medium truncate">
+              {aiVoiceFeedback || 'Ask: "Show low-sodium dinners", "Hearty lentil soup", or "Potassium smoothies"'}
             </p>
           </div>
         </div>
@@ -541,115 +643,90 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
         <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
           <button
             onClick={() => handleProcessVoiceCommand('low sodium dinner recipes')}
-            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap"
+            className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 transition-all"
           >
             "🍝 Low-Sodium"
           </button>
           <button
             onClick={() => handleProcessVoiceCommand('warm vegetable soups and stews')}
-            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap"
+            className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 transition-all"
           >
             "🍲 Soups"
           </button>
           <button
             onClick={() => handleProcessVoiceCommand('potassium blood pressure smoothies')}
-            className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap"
+            className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 transition-all"
           >
             "🥤 Smoothies"
           </button>
         </div>
       </div>
 
-      {/* Salt-Free Seasoning Quick Master Guide */}
-      <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border-2 border-emerald-200 rounded-3xl p-4 sm:p-5 shadow-sm space-y-2.5">
-        <div className="flex items-center gap-2 text-emerald-950 font-extrabold text-xs sm:text-sm uppercase tracking-wider">
-          <Sparkle className="w-4 h-4 text-amber-600" />
-          <span>Doctor & Chef Salt-Free Flavor Enhancers</span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs font-semibold text-slate-800">
-          <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-            <span className="block text-amber-800 font-extrabold">🍋 Citrus & Acids</span>
-            <span className="text-[11px] text-slate-600">Fresh lemon, lime, and aged balsamic wake up tastebuds like salt.</span>
-          </div>
-          <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-            <span className="block text-emerald-800 font-extrabold">🧄 Roasted Alliums</span>
-            <span className="text-[11px] text-slate-600">Garlic, shallots, and caramelized onions provide deep savory umami.</span>
-          </div>
-          <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-            <span className="block text-teal-800 font-extrabold">🌿 Fresh Herbs</span>
-            <span className="text-[11px] text-slate-600">Rosemary, basil, thyme, dill, and mint add aromatic depth.</span>
-          </div>
-          <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-            <span className="block text-rose-800 font-extrabold">🌶️ Smoky Spices</span>
-            <span className="text-[11px] text-slate-600">Smoked paprika, toasted cumin, and black pepper mimic grill savoriness.</span>
-          </div>
-          <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-            <span className="block text-yellow-800 font-extrabold">🧀 Nutritional Yeast</span>
-            <span className="text-[11px] text-slate-600">Gives rich nutty, parmesan-like cheesy flavor with 0mg sodium.</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 🌟 Today's Rotating Daily Chef Special Feature */}
+      {/* 🌟 Today's Rotating Daily Chef Special Spotlight */}
       {dailySpecial && (
-        <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white rounded-3xl p-5 sm:p-7 shadow-lg border-2 border-emerald-600/50 space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-emerald-700/50 pb-3">
-            <div className="flex items-center gap-2">
+        <div className="bg-gradient-to-r from-emerald-950/90 via-slate-900 to-teal-950/90 rounded-3xl p-5 sm:p-7 shadow-xl border border-emerald-500/40 space-y-4 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-400 text-slate-950 flex items-center gap-1 shadow-sm">
                 <Star className="w-3.5 h-3.5 fill-slate-950 text-slate-950" />
                 <span>Today's Daily Chef Feature</span>
               </span>
-              <span className="text-xs text-emerald-200 font-bold hidden sm:inline">
-                • Rotates every 24 hours
+              <span className="text-xs text-slate-400 font-bold">
+                • Rotates daily for fresh inspiration
               </span>
             </div>
 
-            <span className="text-xs font-bold text-emerald-200 bg-white/10 px-3 py-1 rounded-full">
-              🧂 Only {dailySpecial.sodiumMgPerServing}mg Sodium • 🟢 Zero Added Salt
+            <span className="text-xs font-black text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-3 py-1 rounded-full">
+              🧂 Only {dailySpecial.sodiumMgPerServing}mg Sodium • Zero Added Salt
             </span>
           </div>
 
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="flex flex-col sm:flex-row items-start gap-4">
+          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+            <div className="flex flex-col sm:flex-row items-start gap-4 flex-1">
               {dailySpecial.imageUrl ? (
-                <div className="relative w-full sm:w-44 h-32 rounded-2xl overflow-hidden shadow-md flex-shrink-0 border border-white/20 group">
+                <div className="relative w-full sm:w-48 h-36 rounded-2xl overflow-hidden shadow-md flex-shrink-0 border border-slate-700 group">
                   <img
                     src={dailySpecial.imageUrl}
                     alt={dailySpecial.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
-                  <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-950/80 text-white backdrop-blur-xs">
+                  <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-950/90 text-white backdrop-blur-md border border-slate-800">
                     {dailySpecial.emoji} Chef Special
                   </span>
                 </div>
               ) : (
-                <span className="text-4xl sm:text-5xl p-3 rounded-2xl bg-white/10 border border-white/20 flex-shrink-0">
+                <span className="text-4xl sm:text-5xl p-4 rounded-2xl bg-slate-800 border border-slate-700 flex-shrink-0">
                   {dailySpecial.emoji}
                 </span>
               )}
-              <div>
-                <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight leading-snug">
+
+              <div className="space-y-1.5 min-w-0">
+                <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug">
                   {dailySpecial.title}
                 </h3>
-                <p className="text-xs sm:text-sm text-emerald-100 font-medium mt-1 line-clamp-2 max-w-2xl">
+                <p className="text-xs sm:text-sm text-slate-300 font-medium line-clamp-2 max-w-2xl">
                   {dailySpecial.description}
                 </p>
-                <div className="flex flex-wrap items-center gap-2 mt-2 text-xs font-bold text-emerald-300">
-                  <span>⏱️ Prep: {dailySpecial.prepTimeMinutes}m</span>
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-bold text-slate-400">
+                  <span className="flex items-center gap-1 text-slate-200">
+                    <Clock className="w-3.5 h-3.5 text-emerald-400" /> Prep: {dailySpecial.prepTimeMinutes}m • Cook: {dailySpecial.cookTimeMinutes}m
+                  </span>
                   <span>•</span>
-                  <span>🔥 Cook: {dailySpecial.cookTimeMinutes}m</span>
-                  <span>•</span>
-                  <span className="text-amber-300">💡 {dailySpecial.saltFreeSeasoningTips.split('.')[0]}</span>
+                  <span className="text-amber-300 truncate max-w-md">
+                    💡 {dailySpecial.saltFreeSeasoningTips.split('.')[0]}
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto self-end md:self-center">
+            <div className="flex items-center gap-2 w-full md:w-auto self-end md:self-center flex-shrink-0">
               <button
                 onClick={() => setExpandedRecipeId(expandedRecipeId === dailySpecial.id ? null : dailySpecial.id)}
-                className="flex-1 md:flex-initial px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm shadow-md transition-all whitespace-nowrap active:scale-95 flex items-center justify-center gap-1.5"
+                className="w-full md:w-auto px-5 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm shadow-md transition-all whitespace-nowrap active:scale-95 flex items-center justify-center gap-2"
               >
-                <span>{expandedRecipeId === dailySpecial.id ? 'Hide Recipe' : 'View Full Special'}</span>
+                <span>{expandedRecipeId === dailySpecial.id ? 'Hide Special' : 'View Full Recipe'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -657,18 +734,18 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
         </div>
       )}
 
-      {/* Meal Type & Dietary Filters */}
-      <div className="space-y-2">
+      {/* Filter Tabs & Category Rows */}
+      <div className="space-y-3">
         {/* Meal Type Row */}
-        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
           {MEAL_TYPE_OPTIONS.map((m) => (
             <button
               key={m.key}
               onClick={() => setSelectedMealType(m.key)}
-              className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all whitespace-nowrap flex items-center gap-1.5 flex-shrink-0 ${
+              className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all whitespace-nowrap flex items-center gap-2 flex-shrink-0 ${
                 selectedMealType === m.key
-                  ? 'bg-emerald-700 text-white shadow-md shadow-emerald-200'
-                  : 'bg-white text-slate-700 border-2 border-slate-200 hover:bg-slate-50'
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/50'
+                  : 'bg-slate-900/90 text-slate-300 border border-slate-800 hover:bg-slate-800'
               }`}
             >
               <span>{m.emoji}</span>
@@ -678,15 +755,15 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
         </div>
 
         {/* Dietary Tag Row */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {DIETARY_FILTERS.map((d) => (
             <button
               key={d.key}
               onClick={() => setSelectedDietTag(d.key)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all ${
                 selectedDietTag === d.key
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  ? 'bg-slate-100 text-slate-950 shadow-sm'
+                  : 'bg-slate-900 text-slate-400 border border-slate-800 hover:bg-slate-800'
               }`}
             >
               {d.label}
@@ -697,11 +774,11 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
 
       {/* Recipe Cards List */}
       {filteredRecipes.length === 0 ? (
-        <div className="bg-white rounded-3xl border-2 border-slate-200 p-10 text-center space-y-3 shadow-sm">
-          <Utensils className="w-12 h-12 text-slate-400 mx-auto" />
-          <h3 className="text-xl font-extrabold text-slate-900">No Recipes Found</h3>
-          <p className="text-sm font-medium text-slate-500 max-w-md mx-auto">
-            Try clearing your search terms or dietary filters to view all delicious heart-healthy options.
+        <div className="bg-slate-900/90 rounded-3xl border border-slate-800 p-10 text-center space-y-3 shadow-xl">
+          <Utensils className="w-12 h-12 text-slate-500 mx-auto" />
+          <h3 className="text-xl font-black text-white">No Recipes Found</h3>
+          <p className="text-sm font-medium text-slate-400 max-w-md mx-auto">
+            Try clearing search terms or dietary filters to view all available healthy recipes.
           </p>
           <button
             onClick={() => {
@@ -710,13 +787,13 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
               setSearchQuery('');
               setShowBookmarksOnly(false);
             }}
-            className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm shadow-sm"
+            className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm shadow-md"
           >
             Show All Recipes
           </button>
         </div>
       ) : (
-        <div className="space-y-4 sm:space-y-6">
+        <div className="grid grid-cols-1 gap-5">
           {filteredRecipes.map((recipe) => {
             const isExpanded = expandedRecipeId === recipe.id;
             const isGroceryAdded = addedGroceryId === recipe.id;
@@ -724,57 +801,66 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
             return (
               <div
                 key={recipe.id}
-                className="bg-white rounded-3xl border-2 border-slate-200 hover:border-emerald-400 p-5 sm:p-7 shadow-sm transition-all space-y-4"
+                className={`bg-slate-900/90 rounded-3xl border transition-all p-5 sm:p-7 shadow-xl backdrop-blur-md space-y-4 ${
+                  isExpanded ? 'border-emerald-500/60 ring-1 ring-emerald-500/30' : 'border-slate-800 hover:border-slate-700'
+                }`}
               >
                 {/* Header Row */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                  <div className="flex items-start gap-3.5">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                  <div className="flex items-start gap-4 min-w-0">
                     {recipe.imageUrl ? (
-                      <div className="relative w-20 h-20 sm:w-28 sm:h-24 rounded-2xl overflow-hidden shadow-xs flex-shrink-0 border border-slate-200 group">
+                      <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden shadow-md flex-shrink-0 border border-slate-700 group">
                         <img
                           src={recipe.imageUrl}
                           alt={recipe.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
-                        <span className="absolute bottom-1 left-1 px-1.5 py-0.2 rounded-md text-[10px] font-black bg-slate-950/80 text-white backdrop-blur-xs">
+                        <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black bg-slate-950/90 text-white backdrop-blur-xs border border-slate-800">
                           {recipe.emoji}
                         </span>
                       </div>
                     ) : (
-                      <span className="text-3xl sm:text-4xl p-2 rounded-2xl bg-emerald-50 border border-emerald-200 flex-shrink-0">
+                      <span className="text-3xl sm:text-4xl p-3 rounded-2xl bg-slate-800 border border-slate-700 flex-shrink-0">
                         {recipe.emoji}
                       </span>
                     )}
-                    <div>
+
+                    <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300 capitalize">
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 capitalize">
                           {recipe.mealType}
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-teal-100 text-teal-900 border border-teal-300">
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-teal-500/20 text-teal-300 border border-teal-500/30">
                           🟢 {recipe.sodiumMgPerServing} mg Sodium
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
                           {recipe.caloriesPerServing} kcal • {recipe.servings} Servings
                         </span>
+                        {recipe.weekMenuTheme && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">
+                            🗓️ 7-Day Menu Special
+                          </span>
+                        )}
                       </div>
-                      <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900 tracking-tight mt-1 leading-tight">
+                      <h3 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-snug">
                         {recipe.title}
                       </h3>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center">
+                  {/* Actions: Bookmark & Expand */}
+                  <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
                     <button
                       onClick={(e) => handleToggleBookmark(recipe.id, e)}
-                      className={`p-2 sm:p-2.5 rounded-xl transition-colors ${
+                      className={`p-2.5 rounded-2xl border transition-colors ${
                         recipe.isBookmarked
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-400'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-slate-800 hover:bg-slate-750 text-slate-400 border-slate-700'
                       }`}
                       title={recipe.isBookmarked ? 'Saved in bookmarks' : 'Bookmark recipe'}
                     >
                       {recipe.isBookmarked ? (
-                        <BookmarkCheck className="w-5 h-5 fill-emerald-600 text-emerald-700" />
+                        <BookmarkCheck className="w-5 h-5 fill-emerald-400 text-emerald-400" />
                       ) : (
                         <Bookmark className="w-5 h-5" />
                       )}
@@ -782,7 +868,11 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
 
                     <button
                       onClick={() => setExpandedRecipeId(isExpanded ? null : recipe.id)}
-                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm flex items-center gap-1 transition-all"
+                      className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all ${
+                        isExpanded
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700'
+                      }`}
                     >
                       <span>{isExpanded ? 'Hide Recipe' : 'View Full Recipe'}</span>
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -790,123 +880,163 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
                   </div>
                 </div>
 
-                {/* Description & High-Level Metrics */}
-                <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+                {/* Description & High-Level Highlights */}
+                <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed">
                   {recipe.description}
                 </p>
 
-                {/* Time & Health Tag Highlights */}
-                <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
-                  <span className="flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
-                    Prep: {recipe.prepTimeMinutes}m • Cook: {recipe.cookTimeMinutes}m
+                {/* Meta Strip */}
+                <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
+                  <span className="flex items-center gap-1 bg-slate-950/60 px-3 py-1 rounded-xl border border-slate-800 text-slate-200">
+                    <Clock className="w-3.5 h-3.5 text-emerald-400" /> Prep: {recipe.prepTimeMinutes}m
                   </span>
-                  <span className="flex items-center gap-1 bg-emerald-50 text-emerald-900 px-2.5 py-1 rounded-xl border border-emerald-200">
-                    <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
-                    {recipe.healthBenefit}
+                  <span className="flex items-center gap-1 bg-slate-950/60 px-3 py-1 rounded-xl border border-slate-800 text-slate-200">
+                    <Flame className="w-3.5 h-3.5 text-rose-400" /> Cook: {recipe.cookTimeMinutes}m
+                  </span>
+                  <span className="flex items-center gap-1 bg-emerald-950/30 px-3 py-1 rounded-xl border border-emerald-500/30 text-emerald-300">
+                    <Heart className="w-3.5 h-3.5 text-emerald-400" /> {recipe.healthBenefit.split('.')[0]}
                   </span>
                 </div>
 
-                {/* Salt-Free & Vegetarian Callout Chips */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-                  <div className="bg-amber-50/90 border border-amber-200 p-3 rounded-2xl space-y-1">
-                    <span className="text-xs font-extrabold text-amber-900 flex items-center gap-1.5">
-                      <Flame className="w-3.5 h-3.5 text-amber-600" />
-                      Salt-Free Seasoning Tip:
-                    </span>
-                    <p className="text-xs font-semibold text-slate-700">
-                      {recipe.saltFreeSeasoningTips}
-                    </p>
-                  </div>
-
-                  {recipe.vegetarianSwapTip && (
-                    <div className="bg-emerald-50/90 border border-emerald-200 p-3 rounded-2xl space-y-1">
-                      <span className="text-xs font-extrabold text-emerald-900 flex items-center gap-1.5">
-                        <Leaf className="w-3.5 h-3.5 text-emerald-600" />
-                        Vegetarian Alternative Benefit:
-                      </span>
-                      <p className="text-xs font-semibold text-slate-700">
-                        {recipe.vegetarianSwapTip}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Expandable Recipe Details: Ingredients & Instructions */}
+                {/* EXPANDABLE FULL RECIPE DETAILS */}
                 {isExpanded && (
-                  <div className="pt-4 border-t border-slate-200 space-y-5 animate-fadeIn">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Ingredients List */}
-                      <div className="space-y-3 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-2">
-                            <span>🛒 Ingredients ({recipe.ingredients.length})</span>
-                          </h4>
-                          <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
-                            Zero Added Salt
-                          </span>
-                        </div>
-
-                        <ul className="space-y-1.5 text-xs sm:text-sm font-semibold text-slate-700">
-                          {recipe.ingredients.map((ing, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>{ing}</span>
-                            </li>
-                          ))}
-                        </ul>
-
-                        {/* Add to Reminders Grocery Button */}
+                  <div className="pt-4 border-t border-slate-800 space-y-6 animate-scaleUp">
+                    
+                    {/* Action Toolbar: Add Grocery, Read Aloud */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800">
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={(e) => handleAddIngredientsToReminders(recipe, e)}
-                          className={`w-full mt-2 py-2.5 px-3 rounded-xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95 ${
-                            isGroceryAdded
-                              ? 'bg-emerald-600 text-white shadow-sm'
-                              : 'bg-white hover:bg-emerald-50 text-emerald-800 border-2 border-emerald-300 shadow-sm'
-                          }`}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center gap-1.5"
                         >
-                          {isGroceryAdded ? (
-                            <>
-                              <Check className="w-4 h-4" />
-                              <span>Added to Reminders Grocery List!</span>
-                            </>
-                          ) : (
-                            <>
-                              <ShoppingCart className="w-4 h-4" />
-                              <span>Add Ingredients to Reminders List</span>
-                            </>
-                          )}
+                          <ShoppingCart className="w-4 h-4" />
+                          <span>{isGroceryAdded ? 'Added to Grocery List ✓' : 'Add to Reminders Grocery List'}</span>
+                        </button>
+
+                        <button
+                          onClick={(e) => handleReadRecipeAloud(recipe, e)}
+                          className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm border border-slate-700 transition-colors flex items-center gap-1.5"
+                          title="Read aloud step-by-step instructions"
+                        >
+                          <Volume2 className="w-4 h-4 text-emerald-400" />
+                          <span>Read Aloud</span>
                         </button>
                       </div>
 
-                      {/* Step-by-Step Instructions */}
-                      <div className="space-y-3 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-extrabold text-sm sm:text-base text-slate-900">
-                            👨‍🍳 Step-by-Step Instructions
-                          </h4>
-                          <button
-                            onClick={(e) => handleReadRecipeAloud(recipe, e)}
-                            className="p-1.5 rounded-lg bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 flex items-center gap-1 text-xs font-bold"
-                            title="Read recipe aloud"
-                          >
-                            <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Read Aloud</span>
-                          </button>
-                        </div>
+                      <div className="text-xs font-bold text-slate-400">
+                        🧂 {recipe.sodiumMgPerServing} mg Sodium / serving
+                      </div>
+                    </div>
 
-                        <ol className="space-y-2 text-xs sm:text-sm font-medium text-slate-700">
-                          {recipe.instructions.map((inst, i) => (
-                            <li key={i} className="flex items-start gap-2.5">
-                              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                                {i + 1}
-                              </span>
-                              <span className="leading-relaxed">{inst}</span>
-                            </li>
-                          ))}
+                    {/* 2-Column: Ingredients Checklist & Step-by-Step Instructions */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                      
+                      {/* Left: Ingredients Checklist (5 cols) */}
+                      <div className="md:col-span-5 bg-slate-950/60 p-5 rounded-3xl border border-slate-800 space-y-3">
+                        <h4 className="text-sm font-black uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                          <ShoppingCart className="w-4 h-4" />
+                          <span>Ingredients Checklist ({recipe.servings} servings)</span>
+                        </h4>
+
+                        <ul className="space-y-2">
+                          {recipe.ingredients.map((ing, idx) => {
+                            const key = `${recipe.id}-ing-${idx}`;
+                            const isChecked = !!checkedIngredients[key];
+
+                            return (
+                              <li
+                                key={idx}
+                                onClick={() => handleToggleIngredientCheck(key)}
+                                className={`flex items-start gap-2.5 p-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
+                                  isChecked ? 'bg-emerald-950/20 text-slate-500 line-through' : 'hover:bg-slate-850 text-slate-200'
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  className={`w-5 h-5 rounded-lg border flex items-center justify-center text-xs font-black flex-shrink-0 mt-0.5 ${
+                                    isChecked
+                                      ? 'bg-emerald-600 border-emerald-500 text-white'
+                                      : 'border-slate-600 bg-slate-800 text-transparent'
+                                  }`}
+                                >
+                                  ✓
+                                </button>
+                                <span>{ing}</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+
+                      {/* Right: Step-by-Step Instructions (7 cols) */}
+                      <div className="md:col-span-7 bg-slate-950/60 p-5 rounded-3xl border border-slate-800 space-y-3">
+                        <h4 className="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2">
+                          <ChefHat className="w-4 h-4 text-emerald-400" />
+                          <span>Preparation & Cooking Steps</span>
+                        </h4>
+
+                        <ol className="space-y-3">
+                          {recipe.instructions.map((step, idx) => {
+                            const key = `${recipe.id}-step-${idx}`;
+                            const isDone = !!checkedSteps[key];
+
+                            return (
+                              <li
+                                key={idx}
+                                onClick={() => handleToggleStepCheck(key)}
+                                className={`flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer ${
+                                  isDone
+                                    ? 'bg-emerald-950/20 border-emerald-500/30 text-slate-400'
+                                    : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-200'
+                                }`}
+                              >
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${
+                                  isDone ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-emerald-400 border border-slate-700'
+                                }`}>
+                                  {isDone ? '✓' : idx + 1}
+                                </span>
+                                <span className="text-xs sm:text-sm font-medium leading-relaxed">
+                                  {step}
+                                </span>
+                              </li>
+                            );
+                          })}
                         </ol>
                       </div>
                     </div>
+
+                    {/* Salt-Free Seasoning & Health Advisory Badges */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="bg-amber-950/20 border border-amber-500/30 p-4 rounded-2xl space-y-1">
+                        <span className="text-xs font-black text-amber-300 uppercase tracking-wider block">
+                          🧂 Salt-Free Seasoning Secret
+                        </span>
+                        <p className="text-xs text-amber-100 font-medium leading-relaxed">
+                          {recipe.saltFreeSeasoningTips}
+                        </p>
+                      </div>
+
+                      {recipe.vegetarianSwapTip && (
+                        <div className="bg-emerald-950/20 border border-emerald-500/30 p-4 rounded-2xl space-y-1">
+                          <span className="text-xs font-black text-emerald-300 uppercase tracking-wider block">
+                            🌱 Plant Protein & Texture
+                          </span>
+                          <p className="text-xs text-emerald-100 font-medium leading-relaxed">
+                            {recipe.vegetarianSwapTip}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="bg-blue-950/20 border border-blue-500/30 p-4 rounded-2xl space-y-1">
+                        <span className="text-xs font-black text-blue-300 uppercase tracking-wider block">
+                          ❤️ Cardiovascular Benefit
+                        </span>
+                        <p className="text-xs text-blue-100 font-medium leading-relaxed">
+                          {recipe.healthBenefit}
+                        </p>
+                      </div>
+                    </div>
+
                   </div>
                 )}
               </div>
@@ -915,289 +1045,376 @@ export const HealthyRecipes: React.FC<HealthyRecipesProps> = ({ profile, onNavig
         </div>
       )}
 
-      {/* Add Custom Recipe Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-4 animate-fadeIn max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-2">
-                <Utensils className="w-6 h-6 text-emerald-600" />
-                Add Healthy Recipe
-              </h3>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 font-extrabold text-xl"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  Recipe Title
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Garden Vegetable & Lentil Minestrone"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full text-sm p-3 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50 focus:border-emerald-600 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                    Meal Type
-                  </label>
-                  <select
-                    value={newMealType}
-                    onChange={(e) => setNewMealType(e.target.value as RecipeMealType)}
-                    className="w-full text-xs sm:text-sm p-3 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50 focus:border-emerald-600"
-                  >
-                    <option value="dinner">Dinner 🍝</option>
-                    <option value="lunch">Lunch 🥗</option>
-                    <option value="breakfast">Breakfast 🥣</option>
-                    <option value="soup">Soup & Stew 🍲</option>
-                    <option value="smoothie">Smoothie 🥤</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                    Sodium (mg per serving)
-                  </label>
-                  <input
-                    type="number"
-                    value={newSodium}
-                    onChange={(e) => setNewSodium(Number(e.target.value) || 75)}
-                    className="w-full text-sm p-3 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50 focus:border-emerald-600"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                    Calories (kcal per serving)
-                  </label>
-                  <input
-                    type="number"
-                    value={newCalories}
-                    onChange={(e) => setNewCalories(Number(e.target.value) || 250)}
-                    className="w-full text-sm p-3 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50 focus:border-emerald-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                    Recipe Emoji
-                  </label>
-                  <div className="flex items-center gap-1.5 pt-1">
-                    {['🥗', '🍲', '🥣', '🍝', '🥑', '🥦', '🫘', '🍄', '🥤', '🍞'].map((em) => (
-                      <button
-                        key={em}
-                        type="button"
-                        onClick={() => setNewEmoji(em)}
-                        className={`p-1 rounded-lg text-base border transition-all ${
-                          newEmoji === em
-                            ? 'bg-emerald-100 border-emerald-600 ring-2 ring-emerald-300 scale-110'
-                            : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
-                        }`}
-                      >
-                        {em}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">Prep (mins)</label>
-                  <input
-                    type="number"
-                    value={newPrepTime}
-                    onChange={(e) => setNewPrepTime(Number(e.target.value) || 10)}
-                    className="w-full text-sm p-2.5 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">Cook (mins)</label>
-                  <input
-                    type="number"
-                    value={newCookTime}
-                    onChange={(e) => setNewCookTime(Number(e.target.value) || 20)}
-                    className="w-full text-sm p-2.5 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">Servings</label>
-                  <input
-                    type="number"
-                    value={newServings}
-                    onChange={(e) => setNewServings(Number(e.target.value) || 4)}
-                    className="w-full text-sm p-2.5 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  Ingredients (One per line)
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="2 cups baby spinach&#10;1 can no-salt cannellini beans&#10;2 cloves garlic minced"
-                  value={newIngredients}
-                  onChange={(e) => setNewIngredients(e.target.value)}
-                  className="w-full text-xs sm:text-sm p-3 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50 focus:border-emerald-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  Step-by-Step Instructions (One step per line)
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Sauté garlic and carrots in olive oil.&#10;Add beans and broth and simmer for 15 minutes.&#10;Finish with lemon juice and serve."
-                  value={newInstructions}
-                  onChange={(e) => setNewInstructions(e.target.value)}
-                  className="w-full text-xs sm:text-sm p-3 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50 focus:border-emerald-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  Salt-Free Flavor Seasoning Tip
-                </label>
-                <input
-                  type="text"
-                  value={newSeasoningTip}
-                  onChange={(e) => setNewSeasoningTip(e.target.value)}
-                  className="w-full text-xs sm:text-sm p-2.5 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  Vegetarian Swap / Protein Alternative Tip
-                </label>
-                <input
-                  type="text"
-                  value={newSwapTip}
-                  onChange={(e) => setNewSwapTip(e.target.value)}
-                  className="w-full text-xs sm:text-sm p-2.5 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  Health & Blood Pressure Benefit
-                </label>
-                <input
-                  type="text"
-                  value={newHealthBenefit}
-                  onChange={(e) => setNewHealthBenefit(e.target.value)}
-                  className="w-full text-xs sm:text-sm p-2.5 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t">
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl border-2 border-slate-300 font-bold text-slate-700 hover:bg-slate-100 text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveCustomRecipe}
-                disabled={!newTitle.trim()}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-sm shadow-md flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Save Recipe
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI Pantry Fridge Chef Generator Modal */}
+      {/* AI Pantry Fridge Chef Modal */}
       {isPantryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-4 animate-fadeIn">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-2">
-                <ChefHat className="w-6 h-6 text-emerald-600" />
-                <span>AI Pantry & Fridge Chef</span>
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-5 animate-scaleUp text-white">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <h3 className="text-2xl font-black text-white flex items-center gap-2">
+                <ChefHat className="w-6 h-6 text-emerald-400" />
+                <span>Pantry Fridge Chef</span>
               </h3>
               <button
                 onClick={() => setIsPantryModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 font-extrabold text-xl"
+                className="text-slate-400 hover:text-white font-black text-xl p-1"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-xs sm:text-sm font-semibold text-slate-600">
-              Type the ingredients you currently have at home (e.g. <em>spinach, lentils, garlic, sweet potato, brown rice</em>). The AI will immediately craft a brand-new salt-free, heart-healthy gourmet recipe!
+            <p className="text-xs sm:text-sm text-slate-300 font-medium">
+              Tell the AI what ingredients you have in your kitchen or fridge, and it will craft a custom, low-sodium healthy recipe for you!
             </p>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                  What ingredients are in your kitchen today?
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="e.g. broccoli, chickpeas, garlic, olive oil, quinoa, lemon"
-                  value={pantryIngredients}
-                  onChange={(e) => setPantryIngredients(e.target.value)}
-                  className="w-full text-sm p-3 rounded-xl border-2 border-slate-300 font-semibold bg-slate-50 focus:border-emerald-600 focus:outline-none"
-                />
-              </div>
-
-              {/* Quick ingredient chips */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {['🥦 Broccoli', '🥑 Avocado', '🫘 Black Beans', '🧄 Garlic', '🍠 Sweet Potato', '🍅 Tomatoes', '🍄 Mushrooms', '🌾 Quinoa'].map((ing) => (
+            {/* Quick Ingredient Chips */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400">
+                Quick Add Common Ingredients:
+              </label>
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                {COMMON_PANTRY_INGREDIENTS.map((item) => (
                   <button
-                    key={ing}
+                    key={item}
                     type="button"
                     onClick={() => {
-                      const clean = ing.split(' ')[1];
-                      setPantryIngredients((prev) => (prev ? `${prev}, ${clean}` : clean));
+                      const current = pantryIngredients ? pantryIngredients.split(',').map(s => s.trim()) : [];
+                      if (!current.includes(item)) {
+                        setPantryIngredients(current.concat(item).join(', '));
+                      }
                     }}
-                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-emerald-100 text-slate-800 transition-colors"
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 transition-colors"
                   >
-                    + {ing}
+                    + {item}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t">
+            <div>
+              <label className="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1">
+                Ingredients on Hand (Comma separated):
+              </label>
+              <textarea
+                rows={3}
+                placeholder="e.g. Tomatoes, Spinach, Garlic, Chickpeas, Olive Oil, Brown Rice"
+                value={pantryIngredients}
+                onChange={(e) => setPantryIngredients(e.target.value)}
+                className="w-full text-sm p-3.5 rounded-2xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
               <button
+                type="button"
                 onClick={() => setIsPantryModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl border-2 border-slate-300 font-bold text-slate-700 hover:bg-slate-100 text-sm"
+                className="px-5 py-2.5 rounded-xl border border-slate-700 font-bold text-slate-300 hover:bg-slate-800"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleGenerateFromPantry}
                 disabled={!pantryIngredients.trim() || isGeneratingAI}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 disabled:opacity-50 text-white font-extrabold text-sm shadow-md flex items-center gap-2"
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black shadow-lg flex items-center gap-2"
               >
-                <Sparkles className={`w-4 h-4 ${isGeneratingAI ? 'animate-spin' : ''}`} />
-                <span>{isGeneratingAI ? 'Crafting Recipe...' : 'Generate AI Recipe'}</span>
+                <Sparkles className="w-5 h-5" />
+                <span>{isGeneratingAI ? 'Cooking Recipe...' : 'Generate Recipe'}</span>
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Salt-Free Flavor Guide Modal */}
+      {isFlavorGuideOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-2xl w-full p-6 sm:p-8 space-y-5 animate-scaleUp text-white">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <h3 className="text-2xl font-black text-white flex items-center gap-2">
+                <Leaf className="w-6 h-6 text-emerald-400" />
+                <span>Doctor & Chef Salt-Free Flavor Enhancers</span>
+              </h3>
+              <button
+                onClick={() => setIsFlavorGuideOpen(false)}
+                className="text-slate-400 hover:text-white font-black text-xl p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs sm:text-sm text-slate-300 font-medium">
+              You do not have to sacrifice flavor to lower your blood pressure. Use these natural culinary umami tricks:
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-1">
+                <span className="block text-amber-400 font-black text-sm">🍋 Citrus & Fresh Acids</span>
+                <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                  Fresh lemon, lime juice, apple cider vinegar, and aged balsamic vinegar activate the tongue's sour receptors in the same way salt triggers savory cues.
+                </p>
+              </div>
+
+              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-1">
+                <span className="block text-emerald-400 font-black text-sm">🧄 Roasted Alliums</span>
+                <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                  Slow-roasting garlic, shallots, and sweet yellow onions produces natural glutamates and deep caramelization that provide intense richness.
+                </p>
+              </div>
+
+              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-1">
+                <span className="block text-teal-400 font-black text-sm">🌿 Fresh Garden Herbs</span>
+                <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                  Fresh rosemary, basil, thyme, dill, and mint add aromatic essential oils that create depth in broths and vegetable roasts.
+                </p>
+              </div>
+
+              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-1">
+                <span className="block text-rose-400 font-black text-sm">🌶️ Smoky Toasted Spices</span>
+                <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                  Smoked Spanish paprika, toasted cumin seeds, and cracked black pepper impart a wood-fired grill savoriness with 0mg sodium.
+                </p>
+              </div>
+
+              <div className="sm:col-span-2 bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-1">
+                <span className="block text-yellow-400 font-black text-sm">🧀 Nutritional Yeast Flakes</span>
+                <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                  Packed with B-vitamins, nutritional yeast provides an authentic nutty, parmesan-like cheesy flavor for pasta, soups, and roasted vegetables.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setIsFlavorGuideOpen(false)}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-md"
+              >
+                Got It, Thanks!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Custom Recipe Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-5 animate-scaleUp text-white max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <h3 className="text-2xl font-black text-white flex items-center gap-2">
+                <Utensils className="w-6 h-6 text-emerald-400" />
+                <span>Add Healthy Custom Recipe</span>
+              </h3>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-slate-400 hover:text-white font-black text-xl p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1">
+                  Recipe Title *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Grandma's Garden Herb Vegetable Soup"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full text-sm p-3.5 rounded-2xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1">
+                    Meal Type
+                  </label>
+                  <select
+                    value={newMealType}
+                    onChange={(e) => setNewMealType(e.target.value as RecipeMealType)}
+                    className="w-full text-sm p-3.5 rounded-2xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="breakfast">Breakfast 🥣</option>
+                    <option value="lunch">Lunch 🥗</option>
+                    <option value="dinner">Dinner 🍝</option>
+                    <option value="soup">Soup / Stew 🍲</option>
+                    <option value="smoothie">Smoothie 🥤</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1">
+                    Sodium (mg / serving)
+                  </label>
+                  <input
+                    type="number"
+                    value={newSodium}
+                    onChange={(e) => setNewSodium(parseInt(e.target.value) || 0)}
+                    className="w-full text-sm p-3.5 rounded-2xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300 mb-1">
+                    Prep (min)
+                  </label>
+                  <input
+                    type="number"
+                    value={newPrepTime}
+                    onChange={(e) => setNewPrepTime(parseInt(e.target.value) || 0)}
+                    className="w-full text-xs p-3 rounded-xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300 mb-1">
+                    Cook (min)
+                  </label>
+                  <input
+                    type="number"
+                    value={newCookTime}
+                    onChange={(e) => setNewCookTime(parseInt(e.target.value) || 0)}
+                    className="w-full text-xs p-3 rounded-xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300 mb-1">
+                    Servings
+                  </label>
+                  <input
+                    type="number"
+                    value={newServings}
+                    onChange={(e) => setNewServings(parseInt(e.target.value) || 0)}
+                    className="w-full text-xs p-3 rounded-xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300 mb-1">
+                    Calories
+                  </label>
+                  <input
+                    type="number"
+                    value={newCalories}
+                    onChange={(e) => setNewCalories(parseInt(e.target.value) || 0)}
+                    className="w-full text-xs p-3 rounded-xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1">
+                  Salt-Free Flavor Tip
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Fresh lemon juice, garlic, rosemary, and cracked black pepper"
+                  value={newSeasoningTip}
+                  onChange={(e) => setNewSeasoningTip(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1">
+                  Plant Protein / Texture Swap Tip (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Use lentils or hearty beans to replace ground meat"
+                  value={newSwapTip}
+                  onChange={(e) => setNewSwapTip(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1">
+                  Cardiovascular Benefit
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Rich in potassium and plant fiber to support healthy blood pressure"
+                  value={newHealthBenefit}
+                  onChange={(e) => setNewHealthBenefit(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1">
+                  Recipe Icon Emoji
+                </label>
+                <div className="flex items-center gap-2">
+                  {['🥗', '🍲', '🍝', '🥣', '🥤', '🥑', '🥦', '🥘'].map((em) => (
+                    <button
+                      key={em}
+                      type="button"
+                      onClick={() => setNewEmoji(em)}
+                      className={`text-xl p-2 rounded-xl border transition-all ${
+                        newEmoji === em
+                          ? 'bg-emerald-600/30 border-emerald-500 scale-110 shadow-sm'
+                          : 'bg-slate-800 border-slate-700 hover:bg-slate-750'
+                      }`}
+                    >
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1">
+                  Ingredients (One per line)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="2 cups baby spinach&#10;1 cup cherry tomatoes&#10;2 tbsp olive oil"
+                  value={newIngredients}
+                  onChange={(e) => setNewIngredients(e.target.value)}
+                  className="w-full text-sm p-3.5 rounded-2xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none font-mono text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1">
+                  Cooking Instructions (One step per line)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Sauté garlic in olive oil for 2 minutes.&#10;Add tomatoes and simmer for 10 minutes."
+                  value={newInstructions}
+                  onChange={(e) => setNewInstructions(e.target.value)}
+                  className="w-full text-sm p-3.5 rounded-2xl border border-slate-700 bg-slate-800 text-white font-semibold focus:border-emerald-500 focus:outline-none text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-5 py-2.5 rounded-xl border border-slate-700 font-bold text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCustomRecipe}
+                disabled={!newTitle.trim()}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black shadow-lg flex items-center gap-2"
+              >
+                <Check className="w-5 h-5" />
+                <span>Save Recipe</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

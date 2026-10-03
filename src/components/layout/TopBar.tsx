@@ -1,98 +1,38 @@
 import React from 'react';
-import { UserProfile, AppTab, WellbeingAvatarState } from '../../types/health';
+import { UserProfile, AppTab } from '../../types/health';
 import { SpeechService, CURATED_VOICE_PERSONAS } from '../../services/speechService';
 import { DynamicWellbeingAvatar } from '../common/DynamicWellbeingAvatar';
 import { 
+  Settings, 
   Menu, 
   Volume2, 
   VolumeX, 
-  Settings, 
-  Layers, 
   Calendar, 
-  Sparkles, 
-  Activity, 
-  Bell, 
-  Footprints, 
-  CalendarClock, 
-  Utensils, 
-  Camera, 
-  Compass,
+  Layers,
+  Heart,
   Bot,
-  Palette,
+  Activity,
+  AlertTriangle,
+  Camera,
+  Compass,
+  Utensils,
+  BookOpen,
+  ListTodo,
   LogOut
 } from 'lucide-react';
-import { ThemeService } from '../../services/themeService';
 
 interface TopBarProps {
   profile: UserProfile;
-  onUpdateProfile: (updated: UserProfile) => void;
+  onUpdateProfile: (profile: UserProfile) => void;
   activeTab: AppTab;
-  avatarState?: WellbeingAvatarState;
+  avatarState?: any;
   onOpenSettings: () => void;
   onOpenMobileMenu: () => void;
   onSelectScenario: (scenario: 'balanced' | 'rising_bp' | 'missed_meds' | 'dizziness_fatigue') => void;
-  alertCount: number;
+  alertCount?: number;
   onLogout?: () => void;
   username?: string;
 }
-
-const TAB_TITLES: Record<AppTab, { title: string; subtitle: string; icon: React.ElementType }> = {
-  checkin: {
-    title: 'Daily Wellness Check-In',
-    subtitle: 'Track your mood, vitals, blood pressure, and morning medications',
-    icon: Sparkles,
-  },
-  conversational: {
-    title: 'AI Check-In',
-    subtitle: 'Talk or type to record your daily check-in and access instant health answers',
-    icon: Sparkles,
-  },
-  timeline: {
-    title: 'Medication & Vitals Adherence',
-    subtitle: 'Interactive charts, 30-day blood pressure trends, and medication schedules',
-    icon: Activity,
-  },
-  alerts: {
-    title: 'Smart Clinical Risk Alerts',
-    subtitle: 'Automated AI monitoring for blood pressure trends and medication gaps',
-    icon: Bell,
-  },
-  medicine: {
-    title: 'Medication Tracker',
-    subtitle: 'Manage prescription schedule and daily adherence logs',
-    icon: Activity,
-  },
-  activities: {
-    title: 'Physical Activity & Longevity',
-    subtitle: 'Log walks, nature hikes, pickleball, stretching, and daily vitality',
-    icon: Footprints,
-  },
-  reminders: {
-    title: 'Reminders & Daily Tasks',
-    subtitle: 'Keep track of doctor visits, prescription refills, and family calls',
-    icon: CalendarClock,
-  },
-  recipes: {
-    title: 'Healthy Meals & Low-Sodium Recipes',
-    subtitle: 'Delicious senior-friendly, heart-healthy and low-glycemic recipes',
-    icon: Utensils,
-  },
-  scanner: {
-    title: 'AI Food & Dining Out Scanner',
-    subtitle: 'Analyze meal photos or restaurant items for sodium, carbs, and blood pressure safety',
-    icon: Camera,
-  },
-  happenings: {
-    title: 'Bay Area Fun & Community Events',
-    subtitle: 'Curated senior-friendly outdoor activities, cultural events, and festivals',
-    icon: Compass,
-  },
-  assistant: {
-    title: 'Voice & Text AI Assistant',
-    subtitle: 'Hands-free voice speaker or text chat with linked access to all medical, food, and vitals data',
-    icon: Bot,
-  },
-};
 
 export const TopBar: React.FC<TopBarProps> = ({
   profile,
@@ -102,81 +42,104 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenSettings,
   onOpenMobileMenu,
   onSelectScenario,
-  alertCount,
+  alertCount = 0,
   onLogout,
   username,
 }) => {
-  const currentTabInfo = TAB_TITLES[activeTab] || TAB_TITLES.checkin;
-  const CurrentIcon = currentTabInfo.icon;
-
-  const todayFormatted = new Date().toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
-
+  // Voice Persona cycling
   const currentPersona = CURATED_VOICE_PERSONAS.find((p) => p.id === (profile.voicePersona || 'samantha')) || CURATED_VOICE_PERSONAS[0];
 
   const cycleVoicePersona = () => {
-    const personas = CURATED_VOICE_PERSONAS;
-    const currentIndex = personas.findIndex((p) => p.id === (profile.voicePersona || 'samantha'));
-    const nextPersona = personas[(currentIndex + 1) % personas.length];
+    const currentIndex = CURATED_VOICE_PERSONAS.findIndex((p) => p.id === currentPersona.id);
+    const nextIndex = (currentIndex + 1) % CURATED_VOICE_PERSONAS.length;
+    const nextPersona = CURATED_VOICE_PERSONAS[nextIndex];
     onUpdateProfile({
       ...profile,
       voicePersona: nextPersona.id,
       voiceId: undefined,
     });
     if (profile.soundEnabled) {
-      SpeechService.speak(`Voice changed to ${nextPersona.name}`, profile.voiceSpeed, undefined, nextPersona.id, nextPersona.defaultPitch);
+      SpeechService.speak(`Voice changed to ${nextPersona.name}.`, profile.voiceSpeed, undefined, nextPersona.id, nextPersona.defaultPitch);
     }
   };
 
+  // Sound toggle
   const toggleSound = () => {
-    const newSound = !profile.soundEnabled;
-    if (profile.soundEnabled) {
-      SpeechService.stopSpeaking();
+    const nextSound = !profile.soundEnabled;
+    onUpdateProfile({ ...profile, soundEnabled: nextSound });
+    if (nextSound) {
+      SpeechService.speak('Voice assistant audio is active', profile.voiceSpeed);
     }
-    onUpdateProfile({
-      ...profile,
-      soundEnabled: newSound,
-    });
   };
 
+  // Text Scaling cycle
   const cycleTextScale = () => {
-    const nextScale: Record<UserProfile['textScale'], UserProfile['textScale']> = {
-      normal: 'large',
-      large: 'extra-large',
-      'extra-large': 'normal',
-    };
-    onUpdateProfile({
-      ...profile,
-      textScale: nextScale[profile.textScale],
-    });
+    const scales: ('normal' | 'large' | 'extra-large')[] = ['normal', 'large', 'extra-large'];
+    const currentIndex = scales.indexOf(profile.textScale);
+    const nextScale = scales[(currentIndex + 1) % scales.length];
+    onUpdateProfile({ ...profile, textScale: nextScale });
   };
 
+  // Voice Speed Cycle
   const cycleVoiceSpeed = () => {
-    const speeds = [0.75, 0.9, 1.0, 1.25];
-    const currentIndex = speeds.findIndex((s) => Math.abs(s - profile.voiceSpeed) < 0.05);
-    const nextSpeed = speeds[(currentIndex + 1) % speeds.length];
-    onUpdateProfile({
-      ...profile,
-      voiceSpeed: nextSpeed,
-    });
+    const currentSpeed = profile.voiceSpeed || 1.0;
+    const nextSpeed = currentSpeed === 0.85 ? 1.0 : currentSpeed === 1.0 ? 1.25 : 0.85;
+    onUpdateProfile({ ...profile, voiceSpeed: nextSpeed });
+    if (profile.soundEnabled) {
+      SpeechService.speak(
+        nextSpeed === 0.85 ? 'Speaking slower for comfort' : nextSpeed === 1.25 ? 'Speaking faster' : 'Normal voice speed',
+        nextSpeed
+      );
+    }
   };
 
-  const formatSpeedLabel = (speed: number) => {
-    if (speed <= 0.75) return '0.75x Slow';
-    if (speed <= 0.9) return '0.9x Senior';
+  // Tab Title & Icon mapping
+  const getTabInfo = () => {
+    switch (activeTab) {
+      case 'conversational':
+      case 'checkin':
+        return { title: 'AI Daily Check-In', subtitle: 'Voice Check-In & Wellbeing Summary', icon: Bot };
+      case 'timeline':
+      case 'medicine':
+        return { title: 'Medications & Vitals', subtitle: 'Prescriptions, BP Log & Vitals', icon: Heart };
+      case 'alerts':
+        return { title: 'Smart Health Alerts', subtitle: 'Trend & Vital Signs Monitoring', icon: AlertTriangle };
+      case 'activities':
+        return { title: 'Activities & Exercise', subtitle: 'Walks, Stretches & Fitness Logs', icon: Activity };
+      case 'reminders':
+        return { title: 'Reminders & Tasks', subtitle: 'Daily Routine & Medication Schedule', icon: ListTodo };
+      case 'happenings':
+        return { title: 'Bay Area Fun & Outings', subtitle: 'Senior Outings, Low-Salt Dining & Fairs', icon: Compass };
+      case 'recipes':
+        return { title: 'Healthy Meals & Recipes', subtitle: 'Low-Sodium & Heart-Healthy Cooking', icon: Utensils };
+      case 'scanner':
+        return { title: 'AI Food Scanner', subtitle: 'Plate Capture, Calories, Carbs & Sodium', icon: Camera };
+      case 'assistant':
+        return { title: 'Voice & Text AI Assistant', subtitle: 'Linked Medical & Health Companion', icon: BookOpen };
+      default:
+        return { title: 'Daily Health Check-In', subtitle: 'Senior Care & Wellness Dashboard', icon: Heart };
+    }
+  };
+
+  const currentTabInfo = getTabInfo();
+  const CurrentIcon = currentTabInfo.icon;
+
+  const todayFormatted = new Date().toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  const formatSpeedLabel = (speed?: number) => {
+    if (!speed || speed < 1.0) return '0.85x Slow';
     if (speed <= 1.0) return '1.0x Normal';
     return '1.25x Fast';
   };
 
-  const activeTheme = avatarState?.theme || ThemeService.getThemeForAvatarState(avatarState);
-
   return (
     <header 
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
-      className={`bg-white/95 backdrop-blur-md border-b ${activeTheme.topBarBorder} sticky top-0 z-30 shadow-xs transition-colors duration-300`}
+      className="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 sticky top-0 z-30 shadow-lg text-white transition-colors duration-300"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
         <div className="flex items-center justify-between gap-4">
@@ -186,7 +149,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             {/* Mobile Menu Trigger */}
             <button
               onClick={onOpenMobileMenu}
-              className="md:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex-shrink-0"
+              className="md:hidden p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors flex-shrink-0 cursor-pointer border border-slate-700"
               title="Open Navigation Menu"
             >
               <Menu className="w-5 h-5" />
@@ -206,27 +169,16 @@ export const TopBar: React.FC<TopBarProps> = ({
             {/* View Title & Breadcrumb */}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <div className="hidden sm:flex p-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex-shrink-0">
+                <div className="hidden sm:flex p-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex-shrink-0">
                   <CurrentIcon className="w-4 h-4" />
                 </div>
-                <h1 className="text-base sm:text-xl font-extrabold text-slate-900 tracking-tight truncate">
+                <h1 className="text-base sm:text-xl font-black text-white tracking-tight truncate">
                   {currentTabInfo.title}
                 </h1>
-                <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 flex-shrink-0">
-                  <Calendar className="w-3 h-3 text-emerald-600" />
-                  {todayFormatted}
+                <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 flex-shrink-0">
+                  <Calendar className="w-3 h-3 text-emerald-400" />
+                  <span>{todayFormatted}</span>
                 </span>
-
-                {/* Adaptive Theme Name Badge */}
-                {activeTheme && (
-                  <span 
-                    className={`hidden 2xl:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${activeTheme.badgeBg} ${activeTheme.badgeText} border ${activeTheme.badgeBorder} flex-shrink-0`}
-                    title={activeTheme.description}
-                  >
-                    <Palette className="w-3 h-3" />
-                    <span>{activeTheme.name}</span>
-                  </span>
-                )}
 
                 {/* Desktop Wellbeing Avatar Mood Indicator */}
                 {avatarState && (
@@ -239,7 +191,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                   </div>
                 )}
               </div>
-              <p className="text-xs text-slate-500 font-medium truncate hidden sm:block mt-0.5">
+              <p className="text-xs text-slate-400 font-medium truncate hidden sm:block mt-0.5">
                 {currentTabInfo.subtitle}
               </p>
             </div>
@@ -249,59 +201,59 @@ export const TopBar: React.FC<TopBarProps> = ({
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             
             {/* Demo Data Preset Switcher */}
-            <div className="hidden sm:flex items-center bg-slate-100 rounded-xl p-0.5 sm:p-1 border border-slate-200">
-              <Layers className="w-3.5 h-3.5 text-slate-500 ml-1.5 mr-0.5 flex-shrink-0" />
+            <div className="hidden sm:flex items-center bg-slate-950/80 rounded-xl p-0.5 sm:p-1 border border-slate-800">
+              <Layers className="w-3.5 h-3.5 text-slate-400 ml-1.5 mr-0.5 flex-shrink-0" />
               <select
                 onChange={(e) => onSelectScenario(e.target.value as any)}
                 defaultValue="balanced"
-                className="bg-transparent text-xs font-bold text-slate-700 py-1 px-1 focus:outline-none cursor-pointer"
+                className="bg-transparent text-xs font-bold text-slate-300 py-1 px-1 focus:outline-none cursor-pointer"
                 title="Switch demo clinical scenario"
               >
-                <option value="balanced">Demo: Balanced</option>
-                <option value="rising_bp">Demo: Rising BP</option>
-                <option value="missed_meds">Demo: Missed Meds</option>
-                <option value="dizziness_fatigue">Demo: Dizziness</option>
+                <option value="balanced" className="bg-slate-900 text-white">Demo: Balanced</option>
+                <option value="rising_bp" className="bg-slate-900 text-white">Demo: Rising BP</option>
+                <option value="missed_meds" className="bg-slate-900 text-white">Demo: Missed Meds</option>
+                <option value="dizziness_fatigue" className="bg-slate-900 text-white">Demo: Dizziness</option>
               </select>
             </div>
 
             {/* Voice Persona Selector */}
             <button
               onClick={cycleVoicePersona}
-              className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 rounded-xl font-bold text-xs border border-indigo-200 transition-colors flex items-center gap-1.5 active:scale-95 shadow-xs"
+              className="px-2.5 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 rounded-xl font-bold text-xs border border-indigo-500/30 transition-colors flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer"
               title={`Active Voice: ${currentPersona.name} (${currentPersona.accent}). Click to change.`}
             >
               <span className="text-sm">{currentPersona.emoji}</span>
-              <span className="hidden md:inline text-[11px] text-indigo-600 font-semibold">Voice:</span>
-              <span className="truncate max-w-[80px]">{currentPersona.name}</span>
+              <span className="hidden md:inline text-[11px] text-indigo-400 font-semibold">Voice:</span>
+              <span className="truncate max-w-[80px] text-white">{currentPersona.name}</span>
             </button>
 
             {/* Voice Speed Button */}
             <button
               onClick={cycleVoiceSpeed}
-              className="hidden lg:flex px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 rounded-xl font-bold text-xs border border-indigo-200 transition-colors items-center gap-1 active:scale-95 shadow-xs"
+              className="hidden lg:flex px-2.5 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 rounded-xl font-bold text-xs border border-indigo-500/30 transition-colors items-center gap-1 active:scale-95 shadow-sm cursor-pointer"
               title="Click to adjust talking speed"
             >
-              <span className="text-[11px] text-indigo-600 font-semibold">Speed:</span>
-              <span>{formatSpeedLabel(profile.voiceSpeed).split(' ')[0]}</span>
+              <span className="text-[11px] text-indigo-400 font-semibold">Speed:</span>
+              <span className="text-white">{formatSpeedLabel(profile.voiceSpeed).split(' ')[0]}</span>
             </button>
 
             {/* Font Size Toggle */}
             <button
               onClick={cycleTextScale}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs border border-slate-200 transition-colors flex items-center gap-1 active:scale-95 shadow-xs"
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs border border-slate-700 transition-colors flex items-center gap-1 active:scale-95 shadow-sm cursor-pointer"
               title="Change Text Size for Comfort"
             >
-              <span className="text-[11px] text-slate-500">Text:</span>
-              <span className="capitalize font-black">{profile.textScale === 'extra-large' ? 'XL' : profile.textScale === 'large' ? 'L' : 'M'}</span>
+              <span className="text-[11px] text-slate-400">Text:</span>
+              <span className="capitalize font-black text-white">{profile.textScale === 'extra-large' ? 'XL' : profile.textScale === 'large' ? 'L' : 'M'}</span>
             </button>
 
             {/* Audio narration mute / unmute */}
             <button
               onClick={toggleSound}
-              className={`p-2 rounded-xl border transition-colors flex items-center justify-center shadow-xs ${
+              className={`p-2 rounded-xl border transition-colors flex items-center justify-center shadow-sm cursor-pointer ${
                 profile.soundEnabled
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100'
-                  : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
+                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750'
               }`}
               title={profile.soundEnabled ? 'Voice assistance enabled' : 'Voice assistance muted'}
             >
@@ -311,12 +263,12 @@ export const TopBar: React.FC<TopBarProps> = ({
             {/* Settings Trigger */}
             <button
               onClick={onOpenSettings}
-              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors shadow-xs relative"
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors shadow-sm relative cursor-pointer"
               title="Open Settings & Medications"
             >
               <Settings className="w-4 h-4" />
               {alertCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full ring-2 ring-white animate-pulse" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full ring-2 ring-slate-900 animate-pulse" />
               )}
             </button>
 
@@ -324,7 +276,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             {onLogout && (
               <button
                 onClick={onLogout}
-                className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-300 transition-colors shadow-xs"
+                className="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 transition-colors shadow-sm cursor-pointer"
                 title={`Logged in as ${username ? `@${username}` : profile.name}. Click to log out.`}
               >
                 <LogOut className="w-4 h-4" />

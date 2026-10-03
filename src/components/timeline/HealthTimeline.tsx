@@ -20,12 +20,12 @@ import {
   Scale, 
   TrendingUp, 
   Sparkles,
-  Stethoscope
+  CalendarCheck
 } from 'lucide-react';
 import { HealthAnalyticsService } from '../../services/healthAnalytics';
 import { AITimelineQuery } from './AITimelineQuery';
 import { MedicineTracker } from '../medicine/MedicineTracker';
-import { DoctorVisitsManager } from './DoctorVisitsManager';
+import { AppointmentsManager } from './AppointmentsManager';
 import { VitalsAndBpManager } from './VitalsAndBpManager';
 
 interface HealthTimelineProps {
@@ -33,7 +33,7 @@ interface HealthTimelineProps {
   profile: UserProfile;
   onUpdateProfile?: (updated: UserProfile) => void;
   onHistoryUpdated?: (updatedHistory: CheckInRecord[]) => void;
-  defaultSection?: 'diagram' | 'medicine' | 'vitals' | 'doctor';
+  defaultSection?: 'diagram' | 'medicine' | 'vitals' | 'appointments' | 'doctor';
 }
 
 export const HealthTimeline: React.FC<HealthTimelineProps> = ({
@@ -43,7 +43,9 @@ export const HealthTimeline: React.FC<HealthTimelineProps> = ({
   onHistoryUpdated,
   defaultSection = 'medicine',
 }) => {
-  const [activeSection, setActiveSection] = useState<'diagram' | 'medicine' | 'vitals' | 'doctor'>(defaultSection);
+  const [activeSection, setActiveSection] = useState<'diagram' | 'medicine' | 'vitals' | 'appointments' | 'doctor'>(
+    defaultSection === 'doctor' ? 'appointments' : defaultSection
+  );
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | 'all'>('30d');
   const [activeMetric, setActiveMetric] = useState<'bp' | 'energy_sleep' | 'meds' | 'weight'>('bp');
 
@@ -173,15 +175,15 @@ export const HealthTimeline: React.FC<HealthTimelineProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveSection('doctor')}
+          onClick={() => setActiveSection('appointments')}
           className={`flex-1 py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
-            activeSection === 'doctor'
+            activeSection === 'appointments' || activeSection === 'doctor'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/50'
               : 'text-slate-400 hover:text-white hover:bg-slate-800'
           }`}
         >
-          <Stethoscope className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span className="truncate">Doctor & Clinical</span>
+          <CalendarCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="truncate">Appointments</span>
         </button>
 
         <button
@@ -212,8 +214,8 @@ export const HealthTimeline: React.FC<HealthTimelineProps> = ({
         />
       )}
 
-      {activeSection === 'doctor' && (
-        <DoctorVisitsManager
+      {(activeSection === 'appointments' || activeSection === 'doctor') && (
+        <AppointmentsManager
           profile={profile}
           history={history}
         />

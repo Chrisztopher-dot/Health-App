@@ -234,7 +234,10 @@ export const App: React.FC = () => {
               history={history}
               profile={profile}
               onUpdateProfile={handleUpdateProfile}
-              onHistoryUpdated={(newHistory) => setHistory(newHistory)}
+              onHistoryUpdated={(newHistory) => {
+                setHistory(newHistory);
+                setTodayRecord(HealthStorageService.getTodayCheckIn());
+              }}
               defaultSection="medicine"
             />
           )}
@@ -259,6 +262,7 @@ export const App: React.FC = () => {
           {activeTab === 'reminders' && (
             <RemindersTracker
               profile={profile}
+              onNavigateTab={(tab) => setActiveTab(tab)}
             />
           )}
 

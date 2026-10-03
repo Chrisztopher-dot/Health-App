@@ -154,6 +154,7 @@ export interface UserProfile {
 }
 
 export type ReminderPriority = 'urgent' | 'less_urgent';
+export type AppointmentKind = 'health' | 'private' | 'general';
 
 export interface ReminderItem {
   id: string;
@@ -165,6 +166,11 @@ export interface ReminderItem {
   completedAt?: string; // ISO string
   notes?: string;
   createdAt: string; // ISO string
+  appointmentType?: 'health' | 'private';
+  providerOrPerson?: string; // e.g. "Dr. Vance", "Jane (Accountant)"
+  location?: string; // e.g. "UCSF Heart Clinic" or "Downtown Office"
+  phone?: string; // e.g. "(415) 555-0199"
+  category?: string;
 }
 
 export interface RetrospectiveQueryResult {
@@ -239,6 +245,9 @@ export interface RecipeItem {
   emoji: string;
   imageUrl?: string;
   isBookmarked?: boolean;
+  weekMenuTheme?: string;
+  weekLabel?: string;
+  isWeeklySpecial?: boolean;
 }
 
 export type AppTab = 
