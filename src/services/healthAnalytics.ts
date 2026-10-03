@@ -141,42 +141,42 @@ export class HealthAnalyticsService {
     if (prolongedBelowNormal || compositeScore < 38) {
       category = 'needs_attention';
       emoji = '🥺';
-      label = 'Needs Rest & Care';
+      label = 'Rest & Care Recommended';
       bgGradient = 'from-amber-600 via-rose-500 to-rose-600';
       ringColor = 'border-rose-400 ring-rose-400/60';
-      statusMessage = `Wellbeing has been lower than normal for ${belowNormalStreak || 3} check-ins. Listen to your body and take gentle care.`;
+      statusMessage = `Wellbeing lower than baseline for ${belowNormalStreak || 3} days • Rest advised`;
       recommendation = 'Rest comfortably, drink plenty of fluids, and consider letting a family member or your doctor know how you are feeling.';
     } else if (compositeScore >= 82) {
       category = 'thriving';
       emoji = '😄';
-      label = 'Thriving & Energetic';
+      label = 'Optimal Vitality & Wellbeing';
       bgGradient = 'from-emerald-500 to-teal-400';
       ringColor = 'border-emerald-400 ring-emerald-400/40';
-      statusMessage = 'Vibrant energy, great rest, and stable baseline vitals.';
+      statusMessage = `High vitality • Restful sleep (${avgSleep.toFixed(1)}h) • Vitals optimal`;
       recommendation = 'Fantastic job staying active and consistent with your health routine!';
     } else if (compositeScore >= 68) {
       category = 'good';
       emoji = '😊';
-      label = 'Good & Steady';
+      label = 'Vitals & Energy in Healthy Balance';
       bgGradient = 'from-teal-500 to-cyan-500';
       ringColor = 'border-cyan-400 ring-cyan-400/40';
-      statusMessage = 'Balanced vitals, comfortable mood, and steady daily pace.';
+      statusMessage = `Vitals balanced • Sleep ${avgSleep.toFixed(1)}h • Energy ${avgEnergy.toFixed(1)}/10`;
       recommendation = 'Keep enjoying light daily walks and staying well-hydrated today.';
     } else if (compositeScore >= 50) {
       category = 'okay';
       emoji = '🙂';
-      label = 'Balanced & Calm';
+      label = 'Stable Baseline Wellbeing';
       bgGradient = 'from-sky-500 to-indigo-500';
       ringColor = 'border-sky-400 ring-sky-400/40';
-      statusMessage = 'Doing okay with normal fluctuations. Take time for pleasant pauses.';
+      statusMessage = `Stable vitals • Normal daily energy (${avgEnergy.toFixed(1)}/10)`;
       recommendation = 'Take brief stretching breaks and relax with some warm herbal tea.';
     } else {
       category = 'below_normal';
       emoji = '🙁';
-      label = 'Subdued / Low Energy';
+      label = 'Low Energy • Gentle Rest Advised';
       bgGradient = 'from-amber-500 to-orange-500';
       ringColor = 'border-amber-400 ring-amber-400/40';
-      statusMessage = 'Energy or comfort is lower than your usual baseline today.';
+      statusMessage = `Energy lower than usual (${avgEnergy.toFixed(1)}/10) • Prioritize rest`;
       recommendation = 'Prioritize gentle rest, reduce physically taxing chores, and take care.';
     }
 

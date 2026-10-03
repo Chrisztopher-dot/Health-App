@@ -93,8 +93,8 @@ export const DynamicWellbeingAvatar: React.FC<DynamicWellbeingAvatarProps> = ({
                 {avatarState.score}%
               </span>
             </div>
-            <p className="text-[11px] font-medium text-slate-400 truncate flex items-center gap-1">
-              <span className="text-slate-300 font-semibold">{avatarState.label}</span>
+            <p className="text-[11px] font-medium text-slate-400 truncate flex items-center gap-1" title={avatarState.statusMessage || avatarState.label}>
+              <span className="text-emerald-300 font-semibold truncate">{avatarState.label}</span>
             </p>
           </div>
         )}
