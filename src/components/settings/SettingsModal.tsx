@@ -87,10 +87,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-2xl max-w-2xl w-full my-8 overflow-hidden animate-fadeIn">
+    <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-2xl max-w-2xl w-full my-auto max-h-[90vh] flex flex-col overflow-hidden animate-fadeIn">
         {/* Modal Header */}
-        <div className="bg-slate-900 text-white p-6 flex items-center justify-between">
+        <div className="bg-slate-900 text-white p-4 sm:p-6 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <Sliders className="w-6 h-6 text-emerald-400" />
             <h2 className="text-2xl font-extrabold">Health Settings & Medications</h2>

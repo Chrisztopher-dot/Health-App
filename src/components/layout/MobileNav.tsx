@@ -75,7 +75,10 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   return (
     <>
       {/* Floating Bottom Nav for Mobile */}
-      <nav className="md:hidden fixed bottom-3 left-3 right-3 z-40 bg-slate-900/95 backdrop-blur-lg border border-slate-700/80 rounded-3xl shadow-2xl p-1.5 flex items-center justify-around">
+      <nav 
+        style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+        className="md:hidden fixed left-3 right-3 z-40 bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-3xl shadow-2xl p-1.5 flex items-center justify-around"
+      >
         {mainItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -134,7 +137,10 @@ export const MobileNav: React.FC<MobileNavProps> = ({
             onClick={() => setIsMoreOpen(false)}
           />
 
-          <div className="relative bg-slate-900 border-t-2 border-slate-700 rounded-t-3xl p-6 shadow-2xl space-y-4 animate-slideUp z-10">
+          <div 
+            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+            className="relative bg-slate-900 border-t-2 border-slate-700 rounded-t-3xl p-6 shadow-2xl space-y-4 animate-slideUp z-10 max-h-[85vh] overflow-y-auto"
+          >
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-base font-extrabold text-white">More Health & Lifestyle Tools</h3>
               <button

@@ -99,7 +99,7 @@ export const App: React.FC = () => {
   const avatarState = HealthAnalyticsService.evaluateWellbeingAvatarState(history, profile);
 
   return (
-    <div className={`min-h-screen bg-slate-100/70 text-slate-900 flex ${textScaleClasses}`}>
+    <div className={`min-h-screen min-h-screen-dynamic bg-slate-100/70 text-slate-900 flex ${textScaleClasses}`}>
       {/* Sleek Collapsible Sidebar (Desktop + Tablet) */}
       <Sidebar
         activeTab={activeTab}
@@ -119,7 +119,7 @@ export const App: React.FC = () => {
       <div 
         className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
           isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64 lg:ml-72'
-        } pb-24 md:pb-10`}
+        } pb-28 md:pb-10`}
       >
         {/* Top App Header & Controls */}
         <TopBar
@@ -134,7 +134,7 @@ export const App: React.FC = () => {
         />
 
         {/* View Content Canvas */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-fadeIn">
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 animate-fadeIn">
           {/* Primary Voice AI Check-In / Daily Summary */}
           {(activeTab === 'conversational' || activeTab === 'checkin') && (
             <div className="space-y-4">
