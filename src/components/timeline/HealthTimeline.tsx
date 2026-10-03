@@ -9,9 +9,9 @@ import {
   Tooltip, 
   CartesianGrid, 
   BarChart, 
-  Bar,
-  Legend,
-  ReferenceLine
+  Bar, 
+  Legend, 
+  ReferenceLine 
 } from 'recharts';
 import { 
   Activity, 
@@ -98,15 +98,62 @@ export const HealthTimeline: React.FC<HealthTimelineProps> = ({
   const trendInsights = HealthAnalyticsService.generateTrendInsights(history);
 
   return (
-    <div className="max-w-6xl mx-auto my-6 space-y-6">
-      {/* Category Sub-Tabs: Medication Schedule vs BP & Pulse Register vs Doctor Care vs Health Diagrams */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border-2 border-slate-200 p-1.5 sm:p-2 shadow-sm flex items-center justify-center gap-2 max-w-4xl mx-auto flex-wrap sm:flex-nowrap">
+    <div className="max-w-5xl mx-auto space-y-6 pb-16 animate-fadeIn">
+      
+      {/* Hero Header & Vitals / Medication Overview Banner */}
+      <div className="bg-gradient-to-r from-blue-950/80 via-slate-900 to-indigo-950/70 border border-blue-500/30 rounded-3xl p-5 sm:p-7 shadow-xl backdrop-blur-md relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-0.5 rounded-full text-xs font-black bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                Prescriptions & Vitals Care
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                Live Register
+              </span>
+            </div>
+            
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
+              <Activity className="w-8 h-8 text-blue-400 flex-shrink-0" />
+              <span>Medication & Vitals Management</span>
+            </h1>
+            
+            <p className="text-slate-300 text-xs sm:text-sm max-w-xl">
+              Track daily prescriptions, monitor blood pressure & pulse targets, review clinical doctor notes, and explore 30-day health trends.
+            </p>
+          </div>
+
+          {/* Key Metric Highlights */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
+            <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3 text-center">
+              <span className="text-[11px] uppercase font-black text-slate-400 block">30D Adherence</span>
+              <span className="text-lg sm:text-xl font-black text-emerald-400">{adherenceRate}%</span>
+              <span className="text-[10px] font-bold text-slate-500 block">Prescription Compliance</span>
+            </div>
+            <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3 text-center">
+              <span className="text-[11px] uppercase font-black text-slate-400 block">Average BP</span>
+              <span className="text-lg sm:text-xl font-black text-rose-400">{avgSys}/{avgDia}</span>
+              <span className="text-[10px] font-bold text-slate-500 block">Target &lt;{profile.targetSystolicMax}/{profile.targetDiastolicMax}</span>
+            </div>
+            <div className="col-span-2 sm:col-span-1 bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3 text-center">
+              <span className="text-[11px] uppercase font-black text-slate-400 block">Daily Meds</span>
+              <span className="text-lg sm:text-xl font-black text-indigo-400">{profile.medications.length}</span>
+              <span className="text-[10px] font-bold text-slate-500 block">Scheduled Prescriptions</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Category Sub-Tabs with Glowing Active Highlight */}
+      <div className="bg-slate-900/90 rounded-2xl sm:rounded-3xl border border-slate-800 p-1.5 sm:p-2 shadow-xl flex items-center justify-center gap-2 max-w-4xl mx-auto flex-wrap sm:flex-nowrap">
         <button
           onClick={() => setActiveSection('medicine')}
-          className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
             activeSection === 'medicine'
-              ? 'bg-emerald-700 text-white shadow-md shadow-emerald-200'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/50'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
           }`}
         >
           <Pill className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -115,10 +162,10 @@ export const HealthTimeline: React.FC<HealthTimelineProps> = ({
 
         <button
           onClick={() => setActiveSection('vitals')}
-          className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
             activeSection === 'vitals'
-              ? 'bg-rose-700 text-white shadow-md shadow-rose-200'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              ? 'bg-rose-600 text-white shadow-lg shadow-rose-950/50'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
           }`}
         >
           <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -127,10 +174,10 @@ export const HealthTimeline: React.FC<HealthTimelineProps> = ({
 
         <button
           onClick={() => setActiveSection('doctor')}
-          className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
             activeSection === 'doctor'
-              ? 'bg-blue-700 text-white shadow-md shadow-blue-200'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/50'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
           }`}
         >
           <Stethoscope className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -139,10 +186,10 @@ export const HealthTimeline: React.FC<HealthTimelineProps> = ({
 
         <button
           onClick={() => setActiveSection('diagram')}
-          className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-3 px-3 sm:px-4 rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
             activeSection === 'diagram'
-              ? 'bg-indigo-700 text-white shadow-md shadow-indigo-200'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-950/50'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
           }`}
         >
           <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -173,303 +220,327 @@ export const HealthTimeline: React.FC<HealthTimelineProps> = ({
       )}
 
       {activeSection === 'diagram' && (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Top Banner & Time Range Controls */}
-          <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 sm:p-8 shadow-sm">
+          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl backdrop-blur-md">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-                  <TrendingUp className="w-8 h-8 text-emerald-700" />
-                  Health Trends & Diagrams
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
+                  <TrendingUp className="w-7 h-7 text-emerald-400" />
+                  <span>Health Trends & Diagrams</span>
                 </h2>
-                <p className="text-base text-slate-600 mt-1 font-medium">
+                <p className="text-sm text-slate-400 mt-1 font-medium">
                   Tracking your blood pressure, sleep, medications, and wellbeing over time.
                 </p>
               </div>
 
-          <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
-            <button
-              onClick={() => setTimeRange('7d')}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                timeRange === '7d' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Past 7 Days
-            </button>
-            <button
-              onClick={() => setTimeRange('30d')}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                timeRange === '30d' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Past 30 Days
-            </button>
-            <button
-              onClick={() => setTimeRange('all')}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                timeRange === 'all' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              All Time
-            </button>
-          </div>
-        </div>
+              <div className="flex items-center bg-slate-800 p-1 rounded-2xl border border-slate-700">
+                <button
+                  onClick={() => setTimeRange('7d')}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                    timeRange === '7d' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Past 7 Days
+                </button>
+                <button
+                  onClick={() => setTimeRange('30d')}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                    timeRange === '30d' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Past 30 Days
+                </button>
+                <button
+                  onClick={() => setTimeRange('all')}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                    timeRange === 'all' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  All Time
+                </button>
+              </div>
+            </div>
 
-        {/* AI Trend Insights Banner */}
-        <div className="mt-6 bg-emerald-50/80 border-2 border-emerald-200 rounded-2xl p-4 sm:p-5 space-y-2">
-          <div className="flex items-center gap-2 text-emerald-900 font-extrabold text-sm uppercase tracking-wider">
-            <Sparkles className="w-5 h-5 text-emerald-600" />
-            AI Trend Highlights
-          </div>
-          <div className="space-y-1.5">
-            {trendInsights.map((insight, idx) => (
-              <p key={idx} className="text-base font-bold text-emerald-950 flex items-start gap-2">
-                <span className="text-emerald-600">•</span>
-                <span>{insight}</span>
+            {/* AI Trend Insights Banner */}
+            <div className="mt-6 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-4 sm:p-5 space-y-2">
+              <div className="flex items-center gap-2 text-emerald-300 font-black text-xs sm:text-sm uppercase tracking-wider">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span>AI Clinical Trend Highlights</span>
+              </div>
+              <div className="space-y-1.5">
+                {trendInsights.map((insight, idx) => (
+                  <p key={idx} className="text-sm sm:text-base font-semibold text-slate-200 flex items-start gap-2">
+                    <span className="text-emerald-400">•</span>
+                    <span>{insight}</span>
+                  </p>
+                ))}
+              </div>
+              <p className="text-[11px] font-semibold text-slate-400 italic pt-1">
+                {HealthAnalyticsService.MEDICAL_DISCLAIMER}
               </p>
-            ))}
+            </div>
           </div>
-          <p className="text-xs font-semibold text-slate-500 italic pt-1">
-            {HealthAnalyticsService.MEDICAL_DISCLAIMER}
-          </p>
-        </div>
-      </div>
 
-      {/* Metric Selector Tabs */}
-      <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
-        <button
-          onClick={() => setActiveMetric('bp')}
-          className={`px-5 py-3 rounded-2xl font-extrabold text-base border-2 transition-all flex items-center gap-2 ${
-            activeMetric === 'bp'
-              ? 'bg-rose-600 text-white border-rose-700 shadow-md shadow-rose-200'
-              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
-          }`}
-        >
-          <Activity className="w-5 h-5" />
-          Blood Pressure ({avgSys}/{avgDia} avg)
-        </button>
+          {/* Metric Selector Tabs */}
+          <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1">
+            <button
+              onClick={() => setActiveMetric('bp')}
+              className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm border transition-all flex items-center gap-2 flex-shrink-0 ${
+                activeMetric === 'bp'
+                  ? 'bg-rose-600 text-white border-rose-500 shadow-lg shadow-rose-950/50'
+                  : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800'
+              }`}
+            >
+              <Activity className="w-4 h-4 text-rose-400" />
+              <span>Blood Pressure ({avgSys}/{avgDia})</span>
+            </button>
 
-        <button
-          onClick={() => setActiveMetric('energy_sleep')}
-          className={`px-5 py-3 rounded-2xl font-extrabold text-base border-2 transition-all flex items-center gap-2 ${
-            activeMetric === 'energy_sleep'
-              ? 'bg-indigo-600 text-white border-indigo-700 shadow-md shadow-indigo-200'
-              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
-          }`}
-        >
-          <Moon className="w-5 h-5" />
-          Energy & Sleep Quality
-        </button>
+            <button
+              onClick={() => setActiveMetric('energy_sleep')}
+              className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm border transition-all flex items-center gap-2 flex-shrink-0 ${
+                activeMetric === 'energy_sleep'
+                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-950/50'
+                  : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800'
+              }`}
+            >
+              <Moon className="w-4 h-4 text-indigo-400" />
+              <span>Energy & Sleep</span>
+            </button>
 
-        <button
-          onClick={() => setActiveMetric('meds')}
-          className={`px-5 py-3 rounded-2xl font-extrabold text-base border-2 transition-all flex items-center gap-2 ${
-            activeMetric === 'meds'
-              ? 'bg-emerald-600 text-white border-emerald-700 shadow-md shadow-emerald-200'
-              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
-          }`}
-        >
-          <Pill className="w-5 h-5" />
-          Medication Adherence ({adherenceRate}%)
-        </button>
+            <button
+              onClick={() => setActiveMetric('meds')}
+              className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm border transition-all flex items-center gap-2 flex-shrink-0 ${
+                activeMetric === 'meds'
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-950/50'
+                  : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800'
+              }`}
+            >
+              <Pill className="w-4 h-4 text-emerald-400" />
+              <span>Medication Adherence ({adherenceRate}%)</span>
+            </button>
 
-        <button
-          onClick={() => setActiveMetric('weight')}
-          className={`px-5 py-3 rounded-2xl font-extrabold text-base border-2 transition-all flex items-center gap-2 ${
-            activeMetric === 'weight'
-              ? 'bg-teal-600 text-white border-teal-700 shadow-md shadow-teal-200'
-              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
-          }`}
-        >
-          <Scale className="w-5 h-5" />
-          Weight Tracking
-        </button>
-      </div>
+            <button
+              onClick={() => setActiveMetric('weight')}
+              className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm border transition-all flex items-center gap-2 flex-shrink-0 ${
+                activeMetric === 'weight'
+                  ? 'bg-teal-600 text-white border-teal-500 shadow-lg shadow-teal-950/50'
+                  : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800'
+              }`}
+            >
+              <Scale className="w-4 h-4 text-teal-400" />
+              <span>Weight Trend</span>
+            </button>
+          </div>
 
-      {/* Main Interactive Chart Box */}
-      <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 sm:p-8 shadow-sm">
-        {activeMetric === 'bp' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-extrabold text-slate-900">
-                  Systolic & Diastolic Blood Pressure (mmHg)
-                </h3>
-                <p className="text-sm font-semibold text-slate-500">
-                  Target threshold: &lt; {profile.targetSystolicMax}/{profile.targetDiastolicMax} mmHg
-                </p>
+          {/* Main Interactive Chart Box */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl backdrop-blur-md">
+            {activeMetric === 'bp' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-black text-white">
+                      Systolic & Diastolic Blood Pressure (mmHg)
+                    </h3>
+                    <p className="text-xs sm:text-sm font-semibold text-slate-400">
+                      Target threshold: &lt; {profile.targetSystolicMax}/{profile.targetDiastolicMax} mmHg
+                    </p>
+                  </div>
+                </div>
+
+                <div className="h-80 w-full pt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: 12, fontWeight: 600 }} />
+                      <YAxis domain={[50, 180]} stroke="#94a3b8" tick={{ fontSize: 12, fontWeight: 600 }} />
+                      <Tooltip
+                        contentStyle={{ 
+                          backgroundColor: '#0f172a', 
+                          borderRadius: 16, 
+                          border: '1px solid #334155', 
+                          fontWeight: 'bold', 
+                          color: '#f8fafc' 
+                        }}
+                      />
+                      <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 'bold', fontSize: 13, color: '#f8fafc' }} />
+                      <ReferenceLine y={profile.targetSystolicMax} stroke="#ef4444" strokeDasharray="4 4" label={{ value: 'Target Max', fill: '#f87171', fontSize: 11 }} />
+                      <Line
+                        type="monotone"
+                        dataKey="systolic"
+                        name="Systolic (mmHg)"
+                        stroke="#f87171"
+                        strokeWidth={3.5}
+                        dot={{ r: 5, fill: '#f87171' }}
+                        activeDot={{ r: 8 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="diastolic"
+                        name="Diastolic (mmHg)"
+                        stroke="#60a5fa"
+                        strokeWidth={3}
+                        dot={{ r: 4, fill: '#60a5fa' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="pulse"
+                        name="Pulse (bpm)"
+                        stroke="#34d399"
+                        strokeWidth={2}
+                        strokeDasharray="3 3"
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="h-80 w-full pt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 13, fontWeight: 600 }} />
-                  <YAxis domain={[50, 180]} stroke="#64748b" tick={{ fontSize: 13, fontWeight: 600 }} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 16, border: '2px solid #cbd5e1', fontWeight: 'bold' }}
-                  />
-                  <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 'bold', fontSize: 14 }} />
-                  <ReferenceLine y={profile.targetSystolicMax} stroke="#ef4444" strokeDasharray="4 4" label="Target Systolic Max" />
-                  <Line
-                    type="monotone"
-                    dataKey="systolic"
-                    name="Systolic (mmHg)"
-                    stroke="#dc2626"
-                    strokeWidth={3.5}
-                    dot={{ r: 5, fill: '#dc2626' }}
-                    activeDot={{ r: 8 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="diastolic"
-                    name="Diastolic (mmHg)"
-                    stroke="#2563eb"
-                    strokeWidth={3}
-                    dot={{ r: 4, fill: '#2563eb' }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="pulse"
-                    name="Pulse (bpm)"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    strokeDasharray="3 3"
-                    dot={{ r: 3 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
+            {activeMetric === 'energy_sleep' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-black text-white">
+                      Daily Energy & Sleep Quality (Scale 1–10)
+                    </h3>
+                    <p className="text-xs sm:text-sm font-semibold text-slate-400">
+                      Visualizing restorative sleep alongside daytime vitality
+                    </p>
+                  </div>
+                </div>
 
-        {activeMetric === 'energy_sleep' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-extrabold text-slate-900">
-                  Daily Energy & Sleep Quality (Scale 1–10)
-                </h3>
-                <p className="text-sm font-semibold text-slate-500">
-                  Visualizing restorative sleep alongside daytime vitality
-                </p>
+                <div className="h-80 w-full pt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: 12, fontWeight: 600 }} />
+                      <YAxis domain={[0, 10]} stroke="#94a3b8" tick={{ fontSize: 12, fontWeight: 600 }} />
+                      <Tooltip
+                        contentStyle={{ 
+                          backgroundColor: '#0f172a', 
+                          borderRadius: 16, 
+                          border: '1px solid #334155', 
+                          fontWeight: 'bold', 
+                          color: '#f8fafc' 
+                        }}
+                      />
+                      <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 'bold', fontSize: 13, color: '#f8fafc' }} />
+                      <Line
+                        type="monotone"
+                        dataKey="energy"
+                        name="Energy Level (1–10)"
+                        stroke="#fbbf24"
+                        strokeWidth={3.5}
+                        dot={{ r: 5, fill: '#fbbf24' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="sleep"
+                        name="Sleep Quality (1–10)"
+                        stroke="#818cf8"
+                        strokeWidth={3.5}
+                        dot={{ r: 5, fill: '#818cf8' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="h-80 w-full pt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 13, fontWeight: 600 }} />
-                  <YAxis domain={[0, 10]} stroke="#64748b" tick={{ fontSize: 13, fontWeight: 600 }} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 16, border: '2px solid #cbd5e1', fontWeight: 'bold' }}
-                  />
-                  <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 'bold', fontSize: 14 }} />
-                  <Line
-                    type="monotone"
-                    dataKey="energy"
-                    name="Energy Level (1–10)"
-                    stroke="#f59e0b"
-                    strokeWidth={3.5}
-                    dot={{ r: 5, fill: '#f59e0b' }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="sleep"
-                    name="Sleep Quality (1–10)"
-                    stroke="#6366f1"
-                    strokeWidth={3.5}
-                    dot={{ r: 5, fill: '#6366f1' }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
+            {activeMetric === 'meds' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-black text-white">
+                      Daily Medication Adherence
+                    </h3>
+                    <p className="text-xs sm:text-sm font-semibold text-slate-400">
+                      Green = Taken, Red = Missed
+                    </p>
+                  </div>
+                </div>
 
-        {activeMetric === 'meds' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-extrabold text-slate-900">
-                  Daily Medication Adherence
-                </h3>
-                <p className="text-sm font-semibold text-slate-500">
-                  Green = Taken, Red = Missed
-                </p>
+                <div className="h-80 w-full pt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: 12, fontWeight: 600 }} />
+                      <YAxis domain={[0, 1]} ticks={[0, 1]} stroke="#94a3b8" />
+                      <Tooltip
+                        contentStyle={{ 
+                          backgroundColor: '#0f172a', 
+                          borderRadius: 16, 
+                          border: '1px solid #334155', 
+                          fontWeight: 'bold', 
+                          color: '#f8fafc' 
+                        }}
+                      />
+                      <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 'bold', fontSize: 13, color: '#f8fafc' }} />
+                      <Bar dataKey="medTaken" name="Medications Taken" fill="#10b981" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="medMissed" name="Missed Dose" fill="#f87171" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={() => setActiveSection('medicine')}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm transition-all shadow-lg shadow-emerald-950/50"
+                  >
+                    <Pill className="w-4 h-4" />
+                    <span>Open Daily Medicine Tracker & Schedule →</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="h-80 w-full pt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 13, fontWeight: 600 }} />
-                  <YAxis domain={[0, 1]} ticks={[0, 1]} stroke="#64748b" />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 16, border: '2px solid #cbd5e1', fontWeight: 'bold' }}
-                  />
-                  <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 'bold', fontSize: 14 }} />
-                  <Bar dataKey="medTaken" name="Medications Taken" fill="#16a34a" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="medMissed" name="Missed Dose" fill="#dc2626" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {activeMetric === 'weight' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-black text-white">
+                      Weight Trend (lbs)
+                    </h3>
+                    <p className="text-xs sm:text-sm font-semibold text-slate-400">
+                      Gradual morning weight changes
+                    </p>
+                  </div>
+                </div>
 
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setActiveSection('medicine')}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-300 text-emerald-900 font-extrabold text-sm transition-all"
-              >
-                <Pill className="w-4 h-4 text-emerald-700" />
-                <span>Open Daily Medicine Tracker & Schedule →</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeMetric === 'weight' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-extrabold text-slate-900">
-                  Weight Trend (lbs)
-                </h3>
-                <p className="text-sm font-semibold text-slate-500">
-                  Gradual morning weight changes
-                </p>
+                <div className="h-80 w-full pt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData.filter(d => d.weight !== null)} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: 12, fontWeight: 600 }} />
+                      <YAxis domain={['dataMin - 2', 'dataMax + 2']} stroke="#94a3b8" tick={{ fontSize: 12, fontWeight: 600 }} />
+                      <Tooltip
+                        contentStyle={{ 
+                          backgroundColor: '#0f172a', 
+                          borderRadius: 16, 
+                          border: '1px solid #334155', 
+                          fontWeight: 'bold', 
+                          color: '#f8fafc' 
+                        }}
+                      />
+                      <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 'bold', fontSize: 13, color: '#f8fafc' }} />
+                      <Line
+                        type="monotone"
+                        dataKey="weight"
+                        name="Weight (lbs)"
+                        stroke="#2dd4bf"
+                        strokeWidth={3.5}
+                        dot={{ r: 6, fill: '#2dd4bf' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            </div>
-
-            <div className="h-80 w-full pt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData.filter(d => d.weight !== null)} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 13, fontWeight: 600 }} />
-                  <YAxis domain={['dataMin - 2', 'dataMax + 2']} stroke="#64748b" tick={{ fontSize: 13, fontWeight: 600 }} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 16, border: '2px solid #cbd5e1', fontWeight: 'bold' }}
-                  />
-                  <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 'bold', fontSize: 14 }} />
-                  <Line
-                    type="monotone"
-                    dataKey="weight"
-                    name="Weight (lbs)"
-                    stroke="#0d9488"
-                    strokeWidth={3.5}
-                    dot={{ r: 6, fill: '#0d9488' }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* AI Retrospective Q&A Assistant */}
-      <AITimelineQuery history={history} profile={profile} />
+          {/* AI Retrospective Q&A Assistant */}
+          <AITimelineQuery history={history} profile={profile} />
         </div>
       )}
     </div>
