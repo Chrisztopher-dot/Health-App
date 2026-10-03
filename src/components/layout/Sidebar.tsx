@@ -105,6 +105,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           accentColor: 'text-teal-400',
         },
         {
+          id: 'reminders',
+          label: 'Reminders & Tasks',
+          shortLabel: 'Reminders',
+          icon: CalendarClock,
+          accentColor: 'text-indigo-400',
+        },
+        {
           id: 'assistant',
           label: 'Voice & Text Assistant',
           shortLabel: 'Voice & Text',
@@ -139,13 +146,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'Lifestyle & Nutrition',
       items: [
-        {
-          id: 'reminders',
-          label: 'Reminders & Tasks',
-          shortLabel: 'Reminders',
-          icon: CalendarClock,
-          accentColor: 'text-indigo-400',
-        },
         {
           id: 'recipes',
           label: 'Healthy Meals & Recipes',
