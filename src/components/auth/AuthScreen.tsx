@@ -140,11 +140,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
           <div className="inline-flex items-center justify-center p-3.5 bg-gradient-to-tr from-emerald-600 to-teal-500 text-white rounded-2xl shadow-lg shadow-emerald-950/50 mb-1">
             <Heart className="w-8 h-8 fill-white/20 animate-pulse" />
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
+          <h1 className="text-3xl font-black tracking-tight text-white flex items-center justify-center">
             <span>MyHealthSafe</span>
-            <span className="text-xs font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-              Senior 2.0
-            </span>
           </h1>
           <p className="text-sm font-semibold text-slate-400 max-w-sm mx-auto">
             Your private daily health check-in, medication adherence & vitals companion
