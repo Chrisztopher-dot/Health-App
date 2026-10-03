@@ -123,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
-      title: 'Clinical & Vitals',
+      title: 'Health',
       items: [
         {
           id: 'timeline',
@@ -144,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
-      title: 'Health',
+      title: 'Nutrition & Community',
       items: [
         {
           id: 'recipes',
