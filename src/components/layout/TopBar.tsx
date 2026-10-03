@@ -45,7 +45,7 @@ const TAB_TITLES: Record<AppTab, { title: string; subtitle: string; icon: React.
     icon: Sparkles,
   },
   timeline: {
-    title: 'Vitals & Medication Adherence',
+    title: 'Medication & Vitals Adherence',
     subtitle: 'Interactive charts, 30-day blood pressure trends, and medication schedules',
     icon: Activity,
   },

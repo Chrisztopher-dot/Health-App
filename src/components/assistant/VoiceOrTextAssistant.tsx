@@ -603,11 +603,11 @@ export const VoiceOrTextAssistant: React.FC<VoiceOrTextAssistantProps> = ({
           </button>
         </div>
 
-        {/* Vitals & Meds Card */}
+        {/* Medication & Vitals Card */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-2 hover:border-blue-500/40 transition-colors">
           <div className="flex items-center gap-2.5 text-blue-400">
             <Activity className="w-5 h-5" />
-            <h3 className="text-sm font-black text-white">Vitals & Medications</h3>
+            <h3 className="text-sm font-black text-white">Medication & Vitals</h3>
           </div>
           <p className="text-xs text-slate-400">
             Target: &lt;{profile.targetSystolicMin}–{profile.targetSystolicMax}/{profile.targetDiastolicMin}–{profile.targetDiastolicMax} mmHg. Live pulse and prescription logs.

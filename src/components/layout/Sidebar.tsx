@@ -127,8 +127,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'timeline',
-          label: 'Vitals & Medications',
-          shortLabel: 'Vitals',
+          label: 'Medication & Vitals',
+          shortLabel: 'Meds & Vitals',
           icon: Activity,
           accentColor: 'text-blue-400',
         },

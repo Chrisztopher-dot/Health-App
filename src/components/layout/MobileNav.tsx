@@ -46,7 +46,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
     },
     {
       id: 'timeline',
-      label: 'Vitals',
+      label: 'Meds & Vitals',
       icon: Activity,
     },
     {
