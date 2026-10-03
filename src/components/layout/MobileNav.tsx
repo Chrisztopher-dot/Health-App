@@ -142,7 +142,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
             className="relative bg-slate-900 border-t-2 border-slate-700 rounded-t-3xl p-6 shadow-2xl space-y-4 animate-slideUp z-10 max-h-[85vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-extrabold text-white">More Health & Lifestyle Tools</h3>
+              <h3 className="text-base font-extrabold text-white">More Health Tools</h3>
               <button
                 onClick={() => setIsMoreOpen(false)}
                 className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"

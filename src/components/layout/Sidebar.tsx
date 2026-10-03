@@ -144,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
-      title: 'Lifestyle & Nutrition',
+      title: 'Health',
       items: [
         {
           id: 'recipes',
