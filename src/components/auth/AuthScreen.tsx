@@ -148,17 +148,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
           </p>
         </div>
 
-        {/* Security / Cryptographic Salting & Hashing Badge */}
-        <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-3 flex items-start gap-3">
-          <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-          <div className="text-xs space-y-0.5">
-            <p className="font-extrabold text-emerald-300">
-              Bank-Grade Security with PBKDF2 Salting & Hashing
-            </p>
-            <p className="text-slate-400 leading-relaxed font-medium">
-              Passwords are protected with random cryptographic salts and 100,000 PBKDF2-SHA256 rounds. No plaintext passwords are ever saved.
-            </p>
-          </div>
+        {/* Compact Security & Encryption Indicator */}
+        <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-xl px-3.5 py-2 flex items-center justify-center gap-2 text-xs">
+          <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <span className="font-bold text-emerald-300">Salted & Hashed Passwords</span>
+          <span className="text-slate-600">•</span>
+          <span className="text-slate-400 font-medium">Encrypted & Private</span>
         </div>
 
         {/* Mode Selector Tabs (Sign In vs Create Account) */}
