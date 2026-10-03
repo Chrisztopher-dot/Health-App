@@ -17,8 +17,10 @@ import {
   Utensils, 
   Camera, 
   Compass,
-  Bot
+  Bot,
+  Palette
 } from 'lucide-react';
+import { ThemeService } from '../../services/themeService';
 
 interface TopBarProps {
   profile: UserProfile;
@@ -164,10 +166,12 @@ export const TopBar: React.FC<TopBarProps> = ({
     return '1.25x Fast';
   };
 
+  const activeTheme = avatarState?.theme || ThemeService.getThemeForAvatarState(avatarState);
+
   return (
     <header 
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
-      className="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30 shadow-xs"
+      className={`bg-white/95 backdrop-blur-md border-b ${activeTheme.topBarBorder} sticky top-0 z-30 shadow-xs transition-colors duration-300`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
         <div className="flex items-center justify-between gap-4">
@@ -207,6 +211,17 @@ export const TopBar: React.FC<TopBarProps> = ({
                   <Calendar className="w-3 h-3 text-emerald-600" />
                   {todayFormatted}
                 </span>
+
+                {/* Adaptive Theme Name Badge */}
+                {activeTheme && (
+                  <span 
+                    className={`hidden 2xl:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${activeTheme.badgeBg} ${activeTheme.badgeText} border ${activeTheme.badgeBorder} flex-shrink-0`}
+                    title={activeTheme.description}
+                  >
+                    <Palette className="w-3 h-3" />
+                    <span>{activeTheme.name}</span>
+                  </span>
+                )}
 
                 {/* Desktop Wellbeing Avatar Mood Indicator */}
                 {avatarState && (

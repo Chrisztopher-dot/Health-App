@@ -99,10 +99,29 @@ export interface DailySummary {
 
 export type WellbeingStateCategory = 'thriving' | 'good' | 'okay' | 'below_normal' | 'needs_attention';
 
+export interface WellbeingTheme {
+  id: WellbeingStateCategory;
+  name: string;
+  themeMood: string;
+  tagline: string;
+  primaryColor: string;
+  accentColor: string;
+  badgeBg: string;
+  badgeBorder: string;
+  badgeText: string;
+  bgGradient: string;
+  cardAtmosphere: string;
+  ambientGlow: string;
+  ringGlow: string;
+  topBarTint: string;
+  topBarBorder: string;
+  description: string;
+}
+
 export interface WellbeingAvatarState {
   category: WellbeingStateCategory;
   score: number; // 0 to 100
-  label: string; // e.g. "Thriving & Energetic"
+  label: string; // e.g. "Vitals & Energy in Healthy Balance"
   emoji: string; // Dynamic smiley expression
   bgGradient: string;
   ringColor: string;
@@ -113,6 +132,7 @@ export interface WellbeingAvatarState {
   averageEnergy: number;
   averageSleep: number;
   recommendation: string;
+  theme?: WellbeingTheme;
 }
 
 export interface UserProfile {

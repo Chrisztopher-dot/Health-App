@@ -9,6 +9,7 @@ import {
   WellbeingStateCategory
 } from '../types/health';
 import { HealthStorageService } from './healthStorage';
+import { ThemeService } from './themeService';
 
 export class HealthAnalyticsService {
   public static readonly MEDICAL_DISCLAIMER =
@@ -194,6 +195,7 @@ export class HealthAnalyticsService {
       averageEnergy: parseFloat(avgEnergy.toFixed(1)),
       averageSleep: parseFloat(avgSleep.toFixed(1)),
       recommendation,
+      theme: ThemeService.getThemeForCategory(category),
     };
   }
 

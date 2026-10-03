@@ -9,10 +9,12 @@ import {
   Activity, 
   AlertTriangle, 
   CheckCircle2, 
-  HeartHandshake,
   Moon,
-  Zap
+  Zap,
+  Palette,
+  HeartHandshake
 } from 'lucide-react';
+import { ThemeService } from '../../services/themeService';
 
 interface DynamicWellbeingAvatarProps {
   avatarState: WellbeingAvatarState;
@@ -205,6 +207,33 @@ export const DynamicWellbeingAvatar: React.FC<DynamicWellbeingAvatarProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Adaptive Health Theme Atmosphere */}
+              {(() => {
+                const currentTheme = avatarState.theme || ThemeService.getThemeForAvatarState(avatarState);
+                return (
+                  <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                        <Palette className="w-4 h-4 text-purple-400" />
+                        <span>Adaptive Health Theme & Colors</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${currentTheme.badgeBg} ${currentTheme.badgeText} border ${currentTheme.badgeBorder}`}>
+                        {currentTheme.name}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      {currentTheme.description}
+                    </p>
+
+                    <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-400">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Atmosphere automatically reflects your latest {avatarState.score}% wellbeing composite.</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Data Privacy & AES-256 Encryption Guarantee */}
               <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-3">

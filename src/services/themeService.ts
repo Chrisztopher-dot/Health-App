@@ -1,0 +1,105 @@
+import { WellbeingStateCategory, WellbeingTheme, WellbeingAvatarState } from '../types/health';
+
+export const WELLBEING_THEMES: Record<WellbeingStateCategory, WellbeingTheme> = {
+  thriving: {
+    id: 'thriving',
+    name: 'Vibrant Vitality',
+    themeMood: 'Luminous & High Vitality',
+    tagline: 'Vibrant energy, optimal vitals & restful sleep',
+    primaryColor: 'emerald',
+    accentColor: 'text-emerald-400',
+    badgeBg: 'bg-emerald-500/15',
+    badgeBorder: 'border-emerald-500/30',
+    badgeText: 'text-emerald-300',
+    bgGradient: 'from-emerald-950/30 via-slate-900 to-teal-950/20',
+    cardAtmosphere: 'bg-slate-900/90 border-emerald-500/20 shadow-emerald-950/20',
+    ambientGlow: 'bg-emerald-500/10',
+    ringGlow: 'ring-emerald-400/40 border-emerald-400',
+    topBarTint: 'bg-white/95 border-emerald-200 shadow-emerald-950/5',
+    topBarBorder: 'border-emerald-200',
+    description: 'Energizing spring-mint and emerald atmosphere adapted to your high vitality score and stable vitals.',
+  },
+  good: {
+    id: 'good',
+    name: 'Ocean Serenity',
+    themeMood: 'Balanced & Steady Harmony',
+    tagline: 'Healthy vitals, steady routine & good comfort',
+    primaryColor: 'teal',
+    accentColor: 'text-teal-400',
+    badgeBg: 'bg-teal-500/15',
+    badgeBorder: 'border-teal-500/30',
+    badgeText: 'text-teal-300',
+    bgGradient: 'from-teal-950/30 via-slate-900 to-cyan-950/20',
+    cardAtmosphere: 'bg-slate-900/90 border-teal-500/20 shadow-teal-950/20',
+    ambientGlow: 'bg-teal-500/10',
+    ringGlow: 'ring-cyan-400/40 border-cyan-400',
+    topBarTint: 'bg-white/95 border-teal-200 shadow-teal-950/5',
+    topBarBorder: 'border-teal-200',
+    description: 'Calming ocean teal and cyan tones adapted to your balanced blood pressure and steady health metrics.',
+  },
+  okay: {
+    id: 'okay',
+    name: 'Lavender Twilight',
+    themeMood: 'Calm & Soothing Baseline',
+    tagline: 'Moderate pace & pleasant daily pauses',
+    primaryColor: 'indigo',
+    accentColor: 'text-indigo-400',
+    badgeBg: 'bg-indigo-500/15',
+    badgeBorder: 'border-indigo-500/30',
+    badgeText: 'text-indigo-300',
+    bgGradient: 'from-indigo-950/30 via-slate-900 to-slate-950',
+    cardAtmosphere: 'bg-slate-900/90 border-indigo-500/20 shadow-indigo-950/20',
+    ambientGlow: 'bg-indigo-500/10',
+    ringGlow: 'ring-sky-400/40 border-sky-400',
+    topBarTint: 'bg-white/95 border-indigo-200 shadow-indigo-950/5',
+    topBarBorder: 'border-indigo-200',
+    description: 'Soothing periwinkle and soft indigo tones providing a calm visual environment for normal daily fluctuations.',
+  },
+  below_normal: {
+    id: 'below_normal',
+    name: 'Warm Amber Comfort',
+    themeMood: 'Restful Warmth & Low Eye Strain',
+    tagline: 'Cozy rest & gentle recuperation',
+    primaryColor: 'amber',
+    accentColor: 'text-amber-400',
+    badgeBg: 'bg-amber-500/15',
+    badgeBorder: 'border-amber-500/30',
+    badgeText: 'text-amber-300',
+    bgGradient: 'from-amber-950/30 via-slate-900 to-orange-950/20',
+    cardAtmosphere: 'bg-slate-900/90 border-amber-500/20 shadow-amber-950/20',
+    ambientGlow: 'bg-amber-500/12',
+    ringGlow: 'ring-amber-400/40 border-amber-400',
+    topBarTint: 'bg-white/95 border-amber-200 shadow-amber-950/5',
+    topBarBorder: 'border-amber-200',
+    description: 'Warm amber and golden peach tones designed with reduced visual contrast to support relaxed rest and comfort.',
+  },
+  needs_attention: {
+    id: 'needs_attention',
+    name: 'Supportive Rose Care',
+    themeMood: 'Supportive Attention & Hydration',
+    tagline: 'Listen to your body & prioritize gentle recovery',
+    primaryColor: 'rose',
+    accentColor: 'text-rose-400',
+    badgeBg: 'bg-rose-500/15',
+    badgeBorder: 'border-rose-500/30',
+    badgeText: 'text-rose-300',
+    bgGradient: 'from-rose-950/35 via-slate-900 to-amber-950/25',
+    cardAtmosphere: 'bg-slate-900/90 border-rose-500/25 shadow-rose-950/25',
+    ambientGlow: 'bg-rose-500/14',
+    ringGlow: 'ring-rose-400/50 border-rose-400',
+    topBarTint: 'bg-white/95 border-rose-200 shadow-rose-950/5',
+    topBarBorder: 'border-rose-200',
+    description: 'Gentle rose-coral atmosphere indicating that your recent metrics need quiet rest, hydration, and careful attention.',
+  },
+};
+
+export class ThemeService {
+  public static getThemeForCategory(category: WellbeingStateCategory): WellbeingTheme {
+    return WELLBEING_THEMES[category] || WELLBEING_THEMES.good;
+  }
+
+  public static getThemeForAvatarState(avatarState?: WellbeingAvatarState): WellbeingTheme {
+    if (!avatarState) return WELLBEING_THEMES.good;
+    return WELLBEING_THEMES[avatarState.category] || WELLBEING_THEMES.good;
+  }
+}

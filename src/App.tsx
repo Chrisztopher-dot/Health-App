@@ -8,6 +8,7 @@ import {
 } from './types/health';
 import { HealthStorageService } from './services/healthStorage';
 import { HealthAnalyticsService } from './services/healthAnalytics';
+import { ThemeService } from './services/themeService';
 import { SpeechService } from './services/speechService';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
@@ -95,11 +96,16 @@ export const App: React.FC = () => {
     ? HealthAnalyticsService.generateDailySummary(todayRecord, history, profile)
     : null;
 
-  // Dynamic Wellbeing Avatar State
+  // Dynamic Wellbeing Avatar State & Adaptive Theme
   const avatarState = HealthAnalyticsService.evaluateWellbeingAvatarState(history, profile);
+  const activeTheme = avatarState.theme || ThemeService.getThemeForCategory(avatarState.category);
 
   return (
-    <div className={`min-h-screen min-h-screen-dynamic bg-slate-100/70 text-slate-900 flex ${textScaleClasses}`}>
+    <div className={`min-h-screen min-h-screen-dynamic bg-gradient-to-br ${activeTheme.bgGradient} text-slate-900 flex relative transition-colors duration-500 ${textScaleClasses}`}>
+      {/* Adaptive Ambient Atmospheric Glow based on Current Wellbeing State */}
+      <div className={`fixed top-0 right-1/4 w-96 h-96 ${activeTheme.ambientGlow} rounded-full blur-3xl pointer-events-none -z-0 transition-all duration-700`} />
+      <div className={`fixed bottom-10 left-1/3 w-[32rem] h-[32rem] ${activeTheme.ambientGlow} rounded-full blur-3xl pointer-events-none -z-0 transition-all duration-700`} />
+
       {/* Sleek Collapsible Sidebar (Desktop + Tablet) */}
       <Sidebar
         activeTab={activeTab}
