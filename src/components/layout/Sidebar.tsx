@@ -98,13 +98,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           accentColor: 'text-cyan-400',
         },
         {
-          id: 'activities',
-          label: 'Physical Activities',
-          shortLabel: 'Activities',
-          icon: Footprints,
-          accentColor: 'text-teal-400',
-        },
-        {
           id: 'reminders',
           label: 'Reminders & Tasks',
           shortLabel: 'Reminders',
@@ -125,6 +118,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'Health',
       items: [
+        {
+          id: 'activities',
+          label: 'Physical Activities',
+          shortLabel: 'Activities',
+          icon: Footprints,
+          accentColor: 'text-teal-400',
+        },
         {
           id: 'timeline',
           label: 'Vitals & Medications',
