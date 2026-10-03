@@ -77,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const userFirstName = profile.name ? profile.name.trim().split(' ')[0] : 'friend';
   const navSections: NavSection[] = [
     {
-      title: `Good to see you again ${userFirstName}`,
+      title: `Good to see you ${userFirstName}`,
       items: [
         {
           id: 'conversational',
